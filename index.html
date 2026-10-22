@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="it" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Gym Tracker - Scheda Allenamento</title>
+	<link rel="manifest" href="manifest.json">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            900: '#14532d',
+                            accent: '#eab308'
+                        },
+                        dark: {
+                            bg: '#0f172a',
+                            card: '#1e293b',
+                            border: '#334155',
+                            input: '#0f172a'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- docx library for Word Export -->
+    <script src="https://unpkg.com/docx@8.2.3/build/index.umd.js"></script>
+    <!-- FileSaver for triggering downloads -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <style>
+        /* Custom scrollbar & smooth swipe transitions */
+        ::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        .swipe-card {
+            transition: transform 0.25s ease-out, opacity 0.25s ease-out;
+            will-change: transform, opacity;
+        }
+        .no-select {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        /* Mobile app feel */
+        body {
+            touch-action: pan-y;
+            background-color: #0b0f19;
+            color: #f8fafc;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+    </style>
+</head>
+<body class="min-h-screen pb-16 flex flex-col items-center justify-start antialiased selection:bg-brand-500 selection:text-black">
+
+    <!-- App Container -->
+    <div id="app" class="w-full max-w-md min-h-screen flex flex-col bg-slate-950 shadow-2xl relative overflow-x-hidden border-x border-slate-800">
+        
+        <!-- HEADER -->
+        <header class="sticky top-0 z-30 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center space-x-2 cursor-pointer" onclick="navigateTo('home')">
+                <div class="p-2 bg-gradient-to-tr from-brand-600 to-emerald-400 rounded-xl text-slate-950 font-black shadow-lg shadow-brand-500/20">
+                    <i data-lucide="dumbbell" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h1 class="font-black tracking-tight text-lg text-white leading-none">GYM<span class="text-brand-500">TRACK</span></h1>
+                    <span class="text-[10px] text-slate-400 font-medium tracking-wider uppercase">Schede & Workouts</span>
+                </div>
+            </div>
+            <div id="header-actions" class="flex items-center space-x-2">
+                <!-- Dynamic Header Action Icons -->
+            </div>
+        </header>
+
+        <!-- MAIN CONTENT AREA -->
+        <main id="main-content" class="flex-1 p-4 overflow-y-auto">
+            <!-- Dynamic Views injected here -->
+        </main>
+
+        <!-- Toast Notifications -->
+        <div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 bg-brand-500 text-slate-950 font-bold px-4 py-2.5 rounded-full shadow-2xl flex items-center space-x-2 transition-all duration-300 opacity-0 pointer-events-none translate-y-4">
+            <i data-lucide="check-circle" class="w-4 h-4"></i>
+            <span id="toast-message" class="text-sm">Notifica</span>
+        </div>
+
+        <!-- Confirm Modal -->
+        <div id="modal-backdrop" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 w-full max-w-xs shadow-2xl space-y-4">
+                <h3 id="modal-title" class="text-lg font-bold text-white">Conferma Azione</h3>
+                <p id="modal-body" class="text-sm text-slate-400">Sei sicuro di voler procedere?</p>
+                <div class="flex items-center space-x-2 justify-end pt-2">
+                    <button onclick="closeModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold transition">Annulla</button>
+                    <button id="modal-confirm-btn" class="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-semibold transition">Conferma</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- APP LOGIC & DATA -->
+    <script>
+        // Initial Template Workouts Structure (Initial doc supplied: 21 Ottobre 2026)
+        // Updated: All empty weight and rep fields are pre-filled with "N/A" so the routine starts 100% completed.
+        const INITIAL_ROUTINE = {
+            id: "routine_21_10_2026",
+            title: "Scheda 21 Ottobre 2026",
+            createdDate: "2026-10-21T09:00:00.000Z",
+            days: [
+                {
+                    name: "GIORNO 1",
+                    exercises: [
+                        { name: "CHEST PRESS", target: ["8", "8", "8", "8"], weight: ["N/A", "N/A", "N/A", "N/A"], rep: ["N/A", "N/A", "N/A", "N/A"] },
+                        { name: "PECTORAL MACHINE", target: ["10", "8", "6"], weight: ["N/A", "N/A", "N/A"], rep: ["N/A", "N/A", "N/A"] },
+                        { name: "CHEST INCLINE", target: ["8", "8", "8", "8"], weight: ["15", "15", "12.5", "N/A"], rep: ["8", "5", "5", "N/A"] },
+                        { name: "ALZATE FRONTALI CON BILANC.", target: ["12", "12", "12"], weight: ["N/A", "N/A", "N/A"], rep: ["N/A", "N/A", "N/A"] },
+                        { name: "CURL BILANC. IN PIEDI", target: ["10/8", "10/8", "10/8"], weight: ["N/A", "N/A", "N/A"], rep: ["N/A", "N/A", "N/A"] },
+                        { name: "CURL MACHINE SINGOLA", target: ["8", "8", "8"], weight: ["N/A", "N/A", "N/A"], rep: ["N/A", "N/A", "N/A"] }
+                    ]
+                },
+                {
+                    name: "GIORNO 2",
+                    exercises: [
+                        { name: "LEG EXTENSION", target: ["10", "8", "6"], weight: ["20", "25", "30"], rep: ["10", "8", "8"] },
+                        { name: "PRESSA 45°", target: ["8/10", "8/10", "8/10"], weight: ["30", "40", "45"], rep: ["10", "10", "8"] },
+                        { name: "LEG CURL STESO", target: ["10", "10", "10"], weight: ["15", "15", "10"], rep: ["10", "6", "7"] },
+                        { name: "PENDULUM SQUAT", target: ["8/10", "8/10", "8/10"], weight: ["10", "5", "5"], rep: ["5", "6", "5"] },
+                        { name: "ALZATE LATERALI SEDUTO", target: ["10", "10", "10", "10"], weight: ["5", "5", "5", "5"], rep: ["10", "11", "10", "8"] },
+                        { name: "SHOULDER PRESS", target: ["8", "8", "6"], weight: ["20", "20", "25"], rep: ["8", "8", "6"] }
+                    ]
+                },
+                {
+                    name: "GIORNO 3",
+                    exercises: [
+                        { name: "LAT MACHINE CON TRIANGOLO", target: ["6/8", "6/8", "6/8", "6/8"], weight: ["35", "40", "40", "35"], rep: ["8", "6", "5", "6"] },
+                        { name: "ROWING STRETTA", target: ["10", "8", "6"], weight: ["20", "20", "20"], rep: ["8", "8", "8"] },
+                        { name: "PULLEY", target: ["8/10", "8/10", "8/10", "8/10"], weight: ["25+20", "20", "20", "20"], rep: ["5+3", "9", "7", "8"] },
+                        { name: "PECK BACK", target: ["10", "10", "10"], weight: ["27.5", "27.5", "27.5"], rep: ["8", "7", "8"] },
+                        { name: "FRENCH PRESS BILANC. STESO", target: ["8", "8", "8"], weight: ["7.5", "7.5", "5"], rep: ["7", "5", "8"] },
+                        { name: "PUSH DOWN CON FUNE", target: ["8", "8", "8"], weight: ["15+10", "10", "10"], rep: ["5+5", "9", "8"] }
+                    ]
+                },
+                {
+                    name: "GIORNO 4",
+                    exercises: [
+                        { name: "PEC FLY", target: ["10", "10", "10"], weight: ["27.5", "27.5", "27.5"], rep: ["8", "8", "7"] },
+                        { name: "PANCA 30° AL MULTIPOWER", target: ["10", "8", "6"], weight: ["2.5", "2.5", "2.5"], rep: ["N/A", "N/A", "N/A"] },
+                        { name: "REMATORE BILANC PRESA INVERSA", target: ["10", "8", "6"], weight: ["15", "15", "15"], rep: ["10", "10", "10"] },
+                        { name: "CURL MARTELLO IN PIEDI + PUSH DOWN CON ASTA CURVA", target: ["8", "8", "8"], weight: ["5+30", "5+30", "5+30"], rep: ["10+8", "10+8", "10+7"] },
+                        { name: "HACK SQUAT", target: ["8/10", "8/10", "8/10"], weight: ["VUOTO", "VUOTO", "VUOTO"], rep: ["6", "6", "6"] },
+                        { name: "AFFONDI SUL POSTO", target: ["10", "10", "10"], weight: ["N/A", "N/A", "N/A"], rep: ["N/A", "N/A", "N/A"] }
+                    ]
+                }
+            ]
+        };
+
+        // State Management
+        let appState = {
+            routines: [],
+            currentView: 'home', // 'home', 'routine-detail', 'archive'
+            currentRoutineId: null,
+            currentDayIndex: 0,
+            archiveSortOrder: 'desc' // 'desc' | 'asc'
+        };
+
+        // Swipe Gesture Handling state
+        let touchStartX = 0;
+        let touchEndX = 0;
+
+        // Initialize App
+        window.addEventListener('DOMContentLoaded', () => {
+            loadFromLocalStorage();
+            renderApp();
+            lucide.createIcons();
+        });
+
+        // Local Storage Helpers
+        function loadFromLocalStorage() {
+            const saved = localStorage.getItem('gym_tracker_data_v1');
+            if (saved) {
+                try {
+                    appState.routines = JSON.parse(saved);
+                } catch (e) {
+                    console.error("Error loading localStorage data", e);
+                    appState.routines = [JSON.parse(JSON.stringify(INITIAL_ROUTINE))];
+                }
+            } else {
+                appState.routines = [JSON.parse(JSON.stringify(INITIAL_ROUTINE))];
+                saveToLocalStorage();
+            }
+        }
+
+        function saveToLocalStorage() {
+            localStorage.setItem('gym_tracker_data_v1', JSON.stringify(appState.routines));
+        }
+
+        // Routine Status Helper
+        // Check if all fields (weight & rep) for all exercises in a day or routine are filled
+        function isDayComplete(day) {
+            return day.exercises.every(ex => {
+                for (let i = 0; i < ex.target.length; i++) {
+                    if (!ex.weight[i] || ex.weight[i].toString().trim() === "" ||
+                        !ex.rep[i] || ex.rep[i].toString().trim() === "") {
+                        return false;
+                    }
+                }
+                return true;
+            });
+        }
+
+        function isRoutineComplete(routine) {
+            return routine.days.every(day => isDayComplete(day));
+        }
+
+        // Get the active routine (most recent unfinished or most recent overall)
+        function getActiveRoutine() {
+            if (appState.routines.length === 0) return null;
+            // Sort by date desc
+            const sorted = [...appState.routines].sort((a,b) => new Date(b.createdDate) - new Date(a.createdDate));
+            // Find first incomplete
+            const incomplete = sorted.find(r => !isRoutineComplete(r));
+            return incomplete || sorted[0];
+        }
+
+        function getNextIncompleteDayIndex(routine) {
+            if (!routine) return 0;
+            for (let i = 0; i < routine.days.length; i++) {
+                if (!isDayComplete(routine.days[i])) {
+                    return i;
+                }
+            }
+            return 0; // default to first if all complete
+        }
+
+        function getLatestCompletedRoutine() {
+            const sorted = [...appState.routines].sort((a,b) => new Date(b.createdDate) - new Date(a.createdDate));
+            return sorted.find(r => isRoutineComplete(r)) || sorted[0];
+        }
+
+        // Navigation Controller
+        function navigateTo(view, params = {}) {
+            appState.currentView = view;
+            if (params.routineId) appState.currentRoutineId = params.routineId;
+            if (params.dayIndex !== undefined) appState.currentDayIndex = params.dayIndex;
+            
+            renderApp();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // Main Render Function
+        function renderApp() {
+            const mainContent = document.getElementById('main-content');
+            const headerActions = document.getElementById('header-actions');
+            mainContent.innerHTML = '';
+            headerActions.innerHTML = '';
+
+            if (appState.currentView === 'home') {
+                renderHomeView(mainContent, headerActions);
+            } else if (appState.currentView === 'routine-detail') {
+                renderRoutineDetailView(mainContent, headerActions);
+            } else if (appState.currentView === 'archive') {
+                renderArchiveView(mainContent, headerActions);
+            }
+
+            lucide.createIcons();
+        }
+
+        // =========================================================================
+        // VIEW 1: HOME SCREEN
+        // =========================================================================
+        function renderHomeView(container, headerActions) {
+            headerActions.innerHTML = `
+                <button onclick="navigateTo('archive')" class="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition flex items-center gap-1.5 text-xs font-semibold">
+                    <i data-lucide="archive" class="w-4 h-4"></i>
+                    <span>Archivio</span>
+                </button>
+            `;
+
+            const activeRoutine = getActiveRoutine();
+            const isIncomplete = activeRoutine && !isRoutineComplete(activeRoutine);
+            const nextDayIdx = isIncomplete ? getNextIncompleteDayIndex(activeRoutine) : 0;
+            const completedCount = appState.routines.filter(r => isRoutineComplete(r)).length;
+
+            let html = `
+                <div class="space-y-6 animate-fade-in">
+                    
+                    <!-- HERO WELCOME & QUICK CREATION -->
+                    <div class="p-5 rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 border border-slate-800 shadow-xl relative overflow-hidden">
+                        <div class="absolute -right-6 -bottom-6 w-32 h-32 bg-brand-500/10 rounded-full blur-2xl"></div>
+                        
+                        <div class="relative z-10 space-y-4">
+                            <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-500 text-xs font-medium">
+                                <span class="w-2 h-2 rounded-full bg-brand-500 animate-pulse"></span>
+                                <span>Allenamento in Corso</span>
+                            </div>
+
+                            <h2 class="text-2xl font-black text-white tracking-tight">Cosa vuoi fare oggi?</h2>
+                            
+                            <button onclick="createNewRoutine()" class="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-brand-500 to-emerald-500 hover:from-brand-600 hover:to-emerald-600 text-slate-950 font-extrabold flex items-center justify-center space-x-2 shadow-lg shadow-brand-500/25 transition active:scale-[0.98]">
+                                <i data-lucide="plus-circle" class="w-5 h-5"></i>
+                                <span>Crea Nuova Routine</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- SMART BANNER: CONTINUA ALLENAMENTO (IF INCOMPLETE) -->
+                    ${isIncomplete ? `
+                        <div class="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 shadow-lg relative overflow-hidden">
+                            <div class="flex items-start justify-between">
+                                <div class="space-y-1">
+                                    <span class="text-[11px] font-black uppercase tracking-wider text-amber-400">Progresso Incompleto</span>
+                                    <h3 class="text-lg font-bold text-white">${activeRoutine.title}</h3>
+                                    <p class="text-xs text-slate-300">
+                                        Prossimo allenamento: <strong class="text-brand-500 font-bold">${activeRoutine.days[nextDayIdx].name}</strong>
+                                    </p>
+                                </div>
+                                <span class="p-2 rounded-xl bg-amber-500/20 text-amber-400">
+                                    <i data-lucide="flame" class="w-5 h-5"></i>
+                                </span>
+                            </div>
+                            <button onclick="navigateTo('routine-detail', { routineId: '${activeRoutine.id}', dayIndex: ${nextDayIdx} })" class="mt-3 w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm flex items-center justify-center space-x-2 transition active:scale-[0.98]">
+                                <i data-lucide="play" class="w-4 h-4 fill-current"></i>
+                                <span>Continua Allenamento (${activeRoutine.days[nextDayIdx].name})</span>
+                            </button>
+                        </div>
+                    ` : ''}
+
+                    <!-- QUICK ACTIONS GRID -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="openLatestRoutine()" class="p-4 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-left transition flex flex-col justify-between space-y-3 group">
+                            <div class="p-2.5 rounded-xl bg-slate-800 text-brand-500 w-max group-hover:bg-brand-500 group-hover:text-slate-950 transition">
+                                <i data-lucide="history" class="w-5 h-5"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-sm text-white">Ultima Routine</h4>
+                                <p class="text-[11px] text-slate-400 mt-0.5">Vedi l'ultima scheda eseguita</p>
+                            </div>
+                        </button>
+
+                        <button onclick="navigateTo('archive')" class="p-4 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-left transition flex flex-col justify-between space-y-3 group">
+                            <div class="p-2.5 rounded-xl bg-slate-800 text-emerald-400 w-max group-hover:bg-emerald-400 group-hover:text-slate-950 transition">
+                                <i data-lucide="layers" class="w-5 h-5"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-sm text-white">Tutte le Routine</h4>
+                                <p class="text-[11px] text-slate-400 mt-0.5">${appState.routines.length} schede salvate</p>
+                            </div>
+                        </button>
+                    </div>
+
+                    <!-- STATS / RECENT OVERVIEW -->
+                    <div class="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 space-y-3">
+                        <div class="flex items-center justify-between text-xs text-slate-400 font-semibold uppercase tracking-wider">
+                            <span>Panoramica Attività</span>
+                            <i data-lucide="activity" class="w-4 h-4 text-brand-500"></i>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 text-center">
+                            <div class="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
+                                <span class="block text-xl font-black text-white">${appState.routines.length}</span>
+                                <span class="text-[11px] text-slate-400">Totale Schede</span>
+                            </div>
+                            <div class="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
+                                <span class="block text-xl font-black text-brand-500">${completedCount}</span>
+                                <span class="text-[11px] text-slate-400">Completate</span>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            `;
+
+            container.innerHTML = html;
+        }
+
+        // Handler to create a brand new routine with blank fields
+        function createNewRoutine() {
+            const todayStr = new Date().toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' });
+            const titleFormatted = `Scheda ${todayStr.charAt(0).toUpperCase() + todayStr.slice(1)}`;
+            
+            // Deep copy structure from the base routine template
+            const baseTemplate = INITIAL_ROUTINE;
+            const newRoutine = {
+                id: `routine_${Date.now()}`,
+                title: titleFormatted,
+                createdDate: new Date().toISOString(),
+                days: baseTemplate.days.map(day => ({
+                    name: day.name,
+                    exercises: day.exercises.map(ex => ({
+                        name: ex.name,
+                        target: [...ex.target], // Preserve target rep values (non-editable)
+                        weight: new Array(ex.target.length).fill(""), // Empty fields
+                        rep: new Array(ex.target.length).fill("")      // Empty fields
+                    }))
+                }))
+            };
+
+            appState.routines.unshift(newRoutine);
+            saveToLocalStorage();
+            showToast("Nuova routine creata con successo!");
+            navigateTo('routine-detail', { routineId: newRoutine.id, dayIndex: 0 });
+        }
+
+        function openLatestRoutine() {
+            const routine = getLatestCompletedRoutine();
+            if (routine) {
+                navigateTo('routine-detail', { routineId: routine.id, dayIndex: 0 });
+            } else {
+                showToast("Nessuna routine trovata!");
+            }
+        }
+
+
+        // =========================================================================
+        // VIEW 2: ROUTINE DETAIL VIEW (SWIPABLE & COMPILABILITY)
+        // =========================================================================
+        function renderRoutineDetailView(container, headerActions) {
+            const routine = appState.routines.find(r => r.id === appState.currentRoutineId) || appState.routines[0];
+            if (!routine) {
+                navigateTo('home');
+                return;
+            }
+
+            // Find index of current routine in sorted timeline for swipe navigation
+            const sortedRoutines = [...appState.routines].sort((a,b) => new Date(b.createdDate) - new Date(a.createdDate));
+            const rIndex = sortedRoutines.findIndex(r => r.id === routine.id);
+            const prevRoutine = sortedRoutines[rIndex + 1]; // Older
+            const nextRoutine = sortedRoutines[rIndex - 1]; // Newer
+
+            // Header Action Buttons
+            headerActions.innerHTML = `
+                <button onclick="downloadDocx('${routine.id}')" title="Scarica .DOCX" class="p-2 rounded-xl bg-slate-800 text-brand-500 hover:text-white hover:bg-slate-700 transition">
+                    <i data-lucide="file-down" class="w-4 h-4"></i>
+                </button>
+                <button onclick="navigateTo('home')" title="Home" class="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition">
+                    <i data-lucide="home" class="w-4 h-4"></i>
+                </button>
+            `;
+
+            const currentDay = routine.days[appState.currentDayIndex] || routine.days[0];
+
+            let html = `
+                <div class="space-y-4 select-none" id="swipe-container">
+                    
+                    <!-- ROUTINE HEADER & NAVIGATION -->
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <button onclick="navigateRoutineSwipe('right')" ${!prevRoutine ? 'disabled class="opacity-30 p-1.5 rounded-lg bg-slate-900 border border-slate-800"' : 'class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 transition"'}>
+                                <i data-lucide="chevron-left" class="w-5 h-5"></i>
+                            </button>
+
+                            <div class="text-center px-2 flex-1">
+                                <input type="text" value="${escapeHtml(routine.title)}" onchange="updateRoutineTitle('${routine.id}', this.value)" 
+                                    class="text-center font-black text-lg text-white bg-transparent border-b border-transparent hover:border-slate-700 focus:border-brand-500 focus:outline-none w-full truncate" />
+                                <span class="text-[11px] text-slate-400 block">${new Date(routine.createdDate).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                            </div>
+
+                            <button onclick="navigateRoutineSwipe('left')" ${!nextRoutine ? 'disabled class="opacity-30 p-1.5 rounded-lg bg-slate-900 border border-slate-800"' : 'class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 transition"'}>
+                                <i data-lucide="chevron-right" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+
+                        <!-- DAY SELECTION TABS -->
+                        <div class="grid grid-cols-4 gap-1.5 bg-slate-900 p-1 rounded-2xl border border-slate-800">
+                            ${routine.days.map((day, idx) => {
+                                const active = idx === appState.currentDayIndex;
+                                const dayDone = isDayComplete(day);
+                                return `
+                                    <button onclick="switchDay(${idx})" class="py-2 px-1 rounded-xl font-bold text-xs transition flex flex-col items-center justify-center space-y-0.5 ${active ? 'bg-brand-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'}">
+                                        <span>G${idx+1}</span>
+                                        <span class="w-1.5 h-1.5 rounded-full ${dayDone ? (active ? 'bg-slate-950' : 'bg-brand-500') : 'bg-slate-700'}"></span>
+                                    </button>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+
+                    <!-- CURRENT DAY EXERCISES LIST -->
+                    <div id="routine-card-body" class="swipe-card space-y-4">
+                        <div class="flex items-center justify-between px-1">
+                            <h3 class="font-extrabold text-white text-base flex items-center space-x-2">
+                                <span class="w-2 h-4 bg-brand-500 rounded-full"></span>
+                                <span>${currentDay.name}</span>
+                            </h3>
+                            <span class="text-xs px-2.5 py-1 rounded-full ${isDayComplete(currentDay) ? 'bg-brand-500/10 text-brand-500 border border-brand-500/30' : 'bg-slate-800 text-slate-400'} font-semibold">
+                                ${isDayComplete(currentDay) ? 'Completato' : 'In corso'}
+                            </span>
+                        </div>
+
+                        ${currentDay.exercises.map((ex, exIdx) => `
+                            <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 shadow-md space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <h4 class="font-bold text-sm text-slate-100 tracking-wide">${ex.name}</h4>
+                                    <span class="text-[10px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded-md font-mono">${ex.target.length} Serie</span>
+                                </div>
+
+                                <!-- Exercise Table -->
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-center border-collapse">
+                                        <thead>
+                                            <tr class="text-[11px] text-slate-400 border-b border-slate-800 uppercase font-semibold">
+                                                <th class="pb-1.5 text-left w-20">CAMPO</th>
+                                                ${ex.target.map((_, sIdx) => `<th class="pb-1.5">SET ${sIdx + 1}</th>`).join('')}
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-slate-800/50 text-xs">
+                                            <!-- Row: OBIETTIVO (Non Editable) -->
+                                            <tr>
+                                                <td class="py-2 font-semibold text-slate-400 text-left">Obiettivo</td>
+                                                ${ex.target.map(t => `
+                                                    <td class="py-2 font-mono font-bold text-amber-400 bg-slate-950/40">${t}</td>
+                                                `).join('')}
+                                            </tr>
+                                            <!-- Row: PESO (Editable) -->
+                                            <tr>
+                                                <td class="py-2 font-semibold text-slate-300 text-left">Peso (kg)</td>
+                                                ${ex.weight.map((w, sIdx) => `
+                                                    <td class="py-1 px-1">
+                                                        <input type="text" value="${escapeHtml(w)}" 
+                                                            placeholder="--"
+                                                            onchange="updateExerciseData('${routine.id}', ${appState.currentDayIndex}, ${exIdx}, 'weight', ${sIdx}, this.value)"
+                                                            class="w-full py-1.5 text-center font-bold text-white bg-slate-950 border border-slate-800 rounded-lg focus:border-brand-500 focus:bg-slate-900 focus:outline-none transition" />
+                                                    </td>
+                                                `).join('')}
+                                            </tr>
+                                            <!-- Row: REP (Editable) -->
+                                            <tr>
+                                                <td class="py-2 font-semibold text-slate-300 text-left">Rep svolte</td>
+                                                ${ex.rep.map((r, sIdx) => `
+                                                    <td class="py-1 px-1">
+                                                        <input type="text" value="${escapeHtml(r)}" 
+                                                            placeholder="--"
+                                                            onchange="updateExerciseData('${routine.id}', ${appState.currentDayIndex}, ${exIdx}, 'rep', ${sIdx}, this.value)"
+                                                            class="w-full py-1.5 text-center font-bold text-white bg-slate-950 border border-slate-800 rounded-lg focus:border-brand-500 focus:bg-slate-900 focus:outline-none transition" />
+                                                    </td>
+                                                `).join('')}
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+
+                    <!-- EXPORT / FOOTER ACTION -->
+                    <div class="pt-2 flex items-center justify-between">
+                        <button onclick="confirmDeleteRoutine('${routine.id}')" class="text-xs text-red-400 hover:text-red-300 flex items-center space-x-1 p-2 rounded-lg hover:bg-red-500/10 transition">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            <span>Elimina Scheda</span>
+                        </button>
+
+                        <button onclick="downloadDocx('${routine.id}')" class="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-brand-500 font-bold text-xs flex items-center space-x-2 transition border border-slate-700">
+                            <i data-lucide="download" class="w-4 h-4"></i>
+                            <span>Scarica .docx</span>
+                        </button>
+                    </div>
+
+                </div>
+            `;
+
+            container.innerHTML = html;
+
+            // Setup Touch Swipe Listeners
+            const swipeElement = document.getElementById('swipe-container');
+            if (swipeElement) {
+                swipeElement.addEventListener('touchstart', e => {
+                    touchStartX = e.changedTouches[0].screenX;
+                }, { passive: true });
+
+                swipeElement.addEventListener('touchend', e => {
+                    touchEndX = e.changedTouches[0].screenX;
+                    handleSwipeGesture();
+                }, { passive: true });
+            }
+        }
+
+        // Handle touch swipes between routines
+        function handleSwipeGesture() {
+            const threshold = 60; // Minimum px distance to trigger swipe
+            const diff = touchEndX - touchStartX;
+
+            if (Math.abs(diff) > threshold) {
+                if (diff < 0) {
+                    // Swiped Left -> Load Next (Newer) Routine
+                    navigateRoutineSwipe('left');
+                } else {
+                    // Swiped Right -> Load Previous (Older) Routine
+                    navigateRoutineSwipe('right');
+                }
+            }
+        }
+
+        function navigateRoutineSwipe(direction) {
+            const sortedRoutines = [...appState.routines].sort((a,b) => new Date(b.createdDate) - new Date(a.createdDate));
+            const rIndex = sortedRoutines.findIndex(r => r.id === appState.currentRoutineId);
+            
+            let targetRoutine = null;
+            if (direction === 'left' && rIndex > 0) {
+                targetRoutine = sortedRoutines[rIndex - 1]; // Newer
+            } else if (direction === 'right' && rIndex < sortedRoutines.length - 1) {
+                targetRoutine = sortedRoutines[rIndex + 1]; // Older
+            }
+
+            if (targetRoutine) {
+                const cardBody = document.getElementById('routine-card-body');
+                if (cardBody) {
+                    cardBody.style.transform = direction === 'left' ? 'translateX(-100px)' : 'translateX(100px)';
+                    cardBody.style.opacity = '0';
+                }
+                setTimeout(() => {
+                    appState.currentRoutineId = targetRoutine.id;
+                    renderApp();
+                }, 150);
+            }
+        }
+
+        function switchDay(index) {
+            appState.currentDayIndex = index;
+            renderApp();
+        }
+
+        function updateRoutineTitle(routineId, newTitle) {
+            const routine = appState.routines.find(r => r.id === routineId);
+            if (routine && newTitle.trim() !== "") {
+                routine.title = newTitle.trim();
+                saveToLocalStorage();
+                showToast("Titolo aggiornato!");
+            }
+        }
+
+        function updateExerciseData(routineId, dayIdx, exIdx, field, setIdx, value) {
+            const routine = appState.routines.find(r => r.id === routineId);
+            if (routine) {
+                routine.days[dayIdx].exercises[exIdx][field][setIdx] = value;
+                saveToLocalStorage();
+            }
+        }
+
+        function confirmDeleteRoutine(routineId) {
+            showModal("Elimina Routine", "Sei sicuro di voler eliminare definitivamente questa scheda?", () => {
+                appState.routines = appState.routines.filter(r => r.id !== routineId);
+                saveToLocalStorage();
+                showToast("Routine eliminata!");
+                navigateTo('home');
+            });
+        }
+
+
+        // =========================================================================
+        // VIEW 3: ARCHIVE / MENU ALL ROUTINES
+        // =========================================================================
+        function renderArchiveView(container, headerActions) {
+            headerActions.innerHTML = `
+                <button onclick="navigateTo('home')" class="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition">
+                    <i data-lucide="home" class="w-4 h-4"></i>
+                </button>
+            `;
+
+            // Sort routines based on state
+            const sorted = [...appState.routines].sort((a,b) => {
+                const dateA = new Date(a.createdDate);
+                const dateB = new Date(b.createdDate);
+                return appState.archiveSortOrder === 'desc' ? dateB - dateA : dateA - dateB;
+            });
+
+            let html = `
+                <div class="space-y-4">
+                    
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h2 class="text-xl font-black text-white">Archivio Routine</h2>
+                            <p class="text-xs text-slate-400">Tutte le schede salvate nel dispositivo</p>
+                        </div>
+                        <button onclick="toggleSortOrder()" class="p-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-xs font-bold text-brand-500 flex items-center space-x-1.5">
+                            <i data-lucide="arrow-up-down" class="w-3.5 h-3.5"></i>
+                            <span>${appState.archiveSortOrder === 'desc' ? 'Più recenti' : 'Meno recenti'}</span>
+                        </button>
+                    </div>
+
+                    <div class="space-y-3">
+                        ${sorted.map(routine => {
+                            const isComplete = isRoutineComplete(routine);
+                            const completedDays = routine.days.filter(d => isDayComplete(d)).length;
+
+                            return `
+                                <div onclick="navigateTo('routine-detail', { routineId: '${routine.id}', dayIndex: 0 })" class="p-4 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition cursor-pointer shadow-md space-y-3 group">
+                                    <div class="flex items-start justify-between">
+                                        <div class="space-y-0.5">
+                                            <h3 class="font-bold text-white text-base group-hover:text-brand-500 transition">${escapeHtml(routine.title)}</h3>
+                                            <span class="text-xs text-slate-400 block">
+                                                Creata il ${new Date(routine.createdDate).toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' })}
+                                            </span>
+                                        </div>
+                                        <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${isComplete ? 'bg-brand-500/10 text-brand-500 border border-brand-500/30' : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'}">
+                                            ${isComplete ? 'Completata' : 'In corso'}
+                                        </span>
+                                    </div>
+
+                                    <!-- Progress indicator -->
+                                    <div class="space-y-1.5">
+                                        <div class="flex justify-between text-[11px] font-semibold text-slate-400">
+                                            <span>Avanzamento Giorni</span>
+                                            <span>${completedDays} / ${routine.days.length} Giorni</span>
+                                        </div>
+                                        <div class="w-full h-2 rounded-full bg-slate-950 overflow-hidden flex gap-1 p-0.5 border border-slate-800">
+                                            ${routine.days.map(d => `
+                                                <div class="h-full flex-1 rounded-full ${isDayComplete(d) ? 'bg-brand-500' : 'bg-slate-800'}"></div>
+                                            `).join('')}
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+
+                    <div class="pt-4 text-center">
+                        <button onclick="createNewRoutine()" class="py-3 px-6 rounded-2xl bg-slate-900 border border-slate-800 hover:bg-slate-800 text-brand-500 font-bold text-xs inline-flex items-center space-x-2 transition">
+                            <i data-lucide="plus" class="w-4 h-4"></i>
+                            <span>Crea Nuova Routine</span>
+                        </button>
+                    </div>
+
+                </div>
+            `;
+
+            container.innerHTML = html;
+        }
+
+        function toggleSortOrder() {
+            appState.archiveSortOrder = appState.archiveSortOrder === 'desc' ? 'asc' : 'desc';
+            renderApp();
+        }
+
+
+        // =========================================================================
+        // WORD (.DOCX) EXPORT IMPLEMENTATION (docx.js)
+        // =========================================================================
+        function downloadDocx(routineId) {
+            const routine = appState.routines.find(r => r.id === routineId);
+            if (!routine) return;
+
+            showToast("Generazione file Word in corso...");
+
+            try {
+                const docxLib = window.docx;
+                const { Document, Packer, Paragraph, Table, TableRow, TableCell, WidthType, TextRun, HeadingLevel, AlignmentType, BorderStyle } = docxLib;
+
+                const docChildren = [];
+
+                // Routine Title Header
+                docChildren.push(
+                    new Paragraph({
+                        text: routine.title.toUpperCase(),
+                        heading: HeadingLevel.HEADING_1,
+                        alignment: AlignmentType.CENTER,
+                        spacing: { after: 300 }
+                    })
+                );
+
+                // Loop through days
+                routine.days.forEach((day) => {
+                    // Day Title Header
+                    docChildren.push(
+                        new Paragraph({
+                            text: day.name,
+                            heading: HeadingLevel.HEADING_2,
+                            spacing: { before: 200, after: 150 }
+                        })
+                    );
+
+                    // Loop through exercises for this day
+                    day.exercises.forEach((ex) => {
+                        // Exercise Name
+                        docChildren.push(
+                            new Paragraph({
+                                children: [
+                                    new TextRun({
+                                        text: ex.name,
+                                        bold: true,
+                                        size: 22
+                                    })
+                                ],
+                                spacing: { before: 100, after: 80 }
+                            })
+                        );
+
+                        // Table Generation
+                        const numCols = ex.target.length + 1; // 1 column for labels + set columns
+                        
+                        // Header Row (OBIETTIVO, SET 1, SET 2...)
+                        const headerCells = [
+                            new TableCell({
+                                children: [new Paragraph({ children: [new TextRun({ text: "OBIETTIVO", bold: true })] })],
+                                width: { size: 25, type: WidthType.PERCENTAGE }
+                            })
+                        ];
+                        ex.target.forEach((t) => {
+                            headerCells.push(
+                                new TableCell({
+                                    children: [new Paragraph({ children: [new TextRun({ text: t, bold: true })], alignment: AlignmentType.CENTER })],
+                                    width: { size: 75 / ex.target.length, type: WidthType.PERCENTAGE }
+                                })
+                            );
+                        });
+
+                        // PESO Row
+                        const pesoCells = [
+                            new TableCell({
+                                children: [new Paragraph({ children: [new TextRun({ text: "PESO", bold: true })] })]
+                            })
+                        ];
+                        ex.weight.forEach((w) => {
+                            pesoCells.push(
+                                new TableCell({
+                                    children: [new Paragraph({ children: [new TextRun({ text: w || "" })], alignment: AlignmentType.CENTER })]
+                                })
+                            );
+                        });
+
+                        // REP Row
+                        const repCells = [
+                            new TableCell({
+                                children: [new Paragraph({ children: [new TextRun({ text: "REP", bold: true })] })]
+                            })
+                        ];
+                        ex.rep.forEach((r) => {
+                            repCells.push(
+                                new TableCell({
+                                    children: [new Paragraph({ children: [new TextRun({ text: r || "" })], alignment: AlignmentType.CENTER })]
+                                })
+                            );
+                        });
+
+                        const table = new Table({
+                            rows: [
+                                new TableRow({ children: headerCells }),
+                                new TableRow({ children: pesoCells }),
+                                new TableRow({ children: repCells })
+                            ],
+                            width: { size: 100, type: WidthType.PERCENTAGE }
+                        });
+
+                        docChildren.push(table);
+                        docChildren.push(new Paragraph({ text: "", spacing: { after: 120 } }));
+                    });
+                });
+
+                const doc = new Document({
+                    sections: [{
+                        properties: {},
+                        children: docChildren
+                    }]
+                });
+
+                Packer.toBlob(doc).then((blob) => {
+                    const fileName = `${routine.title.replace(/[^a-zA-Z0-9\s]/g, '')}.docx`;
+                    saveAs(blob, fileName);
+                    showToast("Download avviato!");
+                });
+
+            } catch (err) {
+                console.error("DOCX generation error:", err);
+                showToast("Errore nella creazione del file Word.");
+            }
+        }
+
+
+        // =========================================================================
+        // UTILS: TOAST & MODAL HELPERS
+        // =========================================================================
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toast-message');
+            toastMsg.textContent = msg;
+            toast.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-4');
+            toast.classList.add('opacity-100', 'translate-y-0');
+
+            setTimeout(() => {
+                toast.classList.remove('opacity-100', 'translate-y-0');
+                toast.classList.add('opacity-0', 'pointer-events-none', 'translate-y-4');
+            }, 2500);
+        }
+
+        let modalCallback = null;
+        function showModal(title, body, onConfirm) {
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modal-body').textContent = body;
+            modalCallback = onConfirm;
+            document.getElementById('modal-backdrop').classList.remove('hidden');
+
+            document.getElementById('modal-confirm-btn').onclick = () => {
+                if (modalCallback) modalCallback();
+                closeModal();
+            };
+        }
+
+        function closeModal() {
+            document.getElementById('modal-backdrop').classList.add('hidden');
+            modalCallback = null;
+        }
+
+        function escapeHtml(str) {
+            return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+    </script>
+</body>
+</html>
