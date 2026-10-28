@@ -4,7 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Gym Tracker - Scheda Allenamento</title>
-	<link rel="manifest" href="manifest.json">
+    <link rel="manifest" href="manifest.json">
+	
+	<link rel="apple-touch-icon" href="icon.png">
+		<meta name="theme-color" content="#121212">
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -14,19 +17,19 @@
                 extend: {
                     colors: {
                         brand: {
-                            50: '#f0fdf4',
-                            100: '#dcfce7',
-                            500: '#22c55e',
-                            600: '#16a34a',
-                            700: '#15803d',
-                            900: '#14532d',
+                            50: '#e6fef0',
+                            100: '#c2fbd7',
+                            500: '#00E676',
+                            600: '#00c853',
+                            700: '#00a340',
+                            900: '#004d1a',
                             accent: '#eab308'
                         },
                         dark: {
-                            bg: '#0f172a',
-                            card: '#1e293b',
-                            border: '#334155',
-                            input: '#0f172a'
+                            bg: '#121212',
+                            card: '#1e1e1e',
+                            border: '#2a2a2a',
+                            input: '#121212'
                         }
                     }
                 }
@@ -40,16 +43,15 @@
     <!-- FileSaver for triggering downloads -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <style>
-        /* Custom scrollbar & smooth swipe transitions */
         ::-webkit-scrollbar {
             width: 4px;
             height: 4px;
         }
         ::-webkit-scrollbar-track {
-            background: #0f172a;
+            background: #121212;
         }
         ::-webkit-scrollbar-thumb {
-            background: #334155;
+            background: #2a2a2a;
             border-radius: 4px;
         }
         .swipe-card {
@@ -61,10 +63,9 @@
             -webkit-user-select: none;
             user-select: none;
         }
-        /* Mobile app feel */
         body {
             touch-action: pan-y;
-            background-color: #0b0f19;
+            background-color: #121212;
             color: #f8fafc;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
@@ -75,6 +76,10 @@
         }
         input[type="number"] {
             -moz-appearance: textfield;
+        }
+        .last-used-glow {
+            border: 2px solid #00E676 !important;
+            box-shadow: 0 0 14px rgba(0, 230, 118, 0.4) !important;
         }
     </style>
 </head>
@@ -94,15 +99,11 @@
                     <span class="text-[10px] text-slate-400 font-medium tracking-wider uppercase">Schede & Workouts</span>
                 </div>
             </div>
-            <div id="header-actions" class="flex items-center space-x-2">
-                <!-- Dynamic Header Action Icons -->
-            </div>
+            <div id="header-actions" class="flex items-center space-x-2"></div>
         </header>
 
         <!-- MAIN CONTENT AREA -->
-        <main id="main-content" class="flex-1 p-4 overflow-y-auto">
-            <!-- Dynamic Views injected here -->
-        </main>
+        <main id="main-content" class="flex-1 p-4 overflow-y-auto"></main>
 
         <!-- Toast Notifications -->
         <div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 bg-brand-500 text-slate-950 font-bold px-4 py-2.5 rounded-full shadow-2xl flex items-center space-x-2 transition-all duration-300 opacity-0 pointer-events-none translate-y-4">
@@ -110,7 +111,7 @@
             <span id="toast-message" class="text-sm">Notifica</span>
         </div>
 
-        <!-- Confirm Modal -->
+        <!-- Generic Confirm Modal -->
         <div id="modal-backdrop" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 w-full max-w-xs shadow-2xl space-y-4">
                 <h3 id="modal-title" class="text-lg font-bold text-white">Conferma Azione</h3>
@@ -122,106 +123,186 @@
             </div>
         </div>
 
+        <!-- Dynamic Modal (For exercise editing / inputs) -->
+        <div id="dynamic-modal-backdrop" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+            <div id="dynamic-modal-content" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 w-full max-w-sm shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            </div>
+        </div>
+
     </div>
 
-    <!-- APP LOGIC & DATA -->
     <script>
-        // Initial Template Workouts Structure (Initial doc supplied: 21 Ottobre 2026)
-        // Updated: All empty weight and rep fields are pre-filled with "N/A" so the routine starts 100% completed.
-        const INITIAL_ROUTINE = {
-            id: "routine_21_10_2026",
-            title: "Scheda 21 Ottobre 2026",
-            createdDate: "2026-10-21T09:00:00.000Z",
+        // Default Base Template Definition
+        const DEFAULT_SCHEDA = {
+            id: "default_scheda_base",
+            title: "Scheda 4 Giorni Base",
             days: [
                 {
                     name: "GIORNO 1",
                     exercises: [
-                        { name: "CHEST PRESS", target: ["8", "8", "8", "8"], weight: ["N/A", "N/A", "N/A", "N/A"], rep: ["N/A", "N/A", "N/A", "N/A"] },
-                        { name: "PECTORAL MACHINE", target: ["10", "8", "6"], weight: ["N/A", "N/A", "N/A"], rep: ["N/A", "N/A", "N/A"] },
-                        { name: "CHEST INCLINE", target: ["8", "8", "8", "8"], weight: ["15", "15", "12.5", "N/A"], rep: ["8", "5", "5", "N/A"] },
-                        { name: "ALZATE FRONTALI CON BILANC.", target: ["12", "12", "12"], weight: ["N/A", "N/A", "N/A"], rep: ["N/A", "N/A", "N/A"] },
-                        { name: "CURL BILANC. IN PIEDI", target: ["10/8", "10/8", "10/8"], weight: ["N/A", "N/A", "N/A"], rep: ["N/A", "N/A", "N/A"] },
-                        { name: "CURL MACHINE SINGOLA", target: ["8", "8", "8"], weight: ["N/A", "N/A", "N/A"], rep: ["N/A", "N/A", "N/A"] }
+                        { name: "CHEST PRESS", target: ["8", "8", "8", "8"] },
+                        { name: "PECTORAL MACHINE", target: ["10", "8", "6"] },
+                        { name: "CHEST INCLINE", target: ["8", "8", "8", "8"] },
+                        { name: "ALZATE FRONTALI CON BILANC.", target: ["12", "12", "12"] },
+                        { name: "CURL BILANC. IN PIEDI", target: ["10/8", "10/8", "10/8"] },
+                        { name: "CURL MACHINE SINGOLA", target: ["8", "8", "8"] }
                     ]
                 },
                 {
                     name: "GIORNO 2",
                     exercises: [
-                        { name: "LEG EXTENSION", target: ["10", "8", "6"], weight: ["20", "25", "30"], rep: ["10", "8", "8"] },
-                        { name: "PRESSA 45°", target: ["8/10", "8/10", "8/10"], weight: ["30", "40", "45"], rep: ["10", "10", "8"] },
-                        { name: "LEG CURL STESO", target: ["10", "10", "10"], weight: ["15", "15", "10"], rep: ["10", "6", "7"] },
-                        { name: "PENDULUM SQUAT", target: ["8/10", "8/10", "8/10"], weight: ["10", "5", "5"], rep: ["5", "6", "5"] },
-                        { name: "ALZATE LATERALI SEDUTO", target: ["10", "10", "10", "10"], weight: ["5", "5", "5", "5"], rep: ["10", "11", "10", "8"] },
-                        { name: "SHOULDER PRESS", target: ["8", "8", "6"], weight: ["20", "20", "25"], rep: ["8", "8", "6"] }
+                        { name: "LEG EXTENSION", target: ["10", "8", "6"] },
+                        { name: "PRESSA 45°", target: ["8/10", "8/10", "8/10"] },
+                        { name: "LEG CURL STESO", target: ["10", "10", "10"] },
+                        { name: "PENDULUM SQUAT", target: ["8/10", "8/10", "8/10"] },
+                        { name: "ALZATE LATERALI SEDUTO", target: ["10", "10", "10", "10"] },
+                        { name: "SHOULDER PRESS", target: ["8", "8", "6"] }
                     ]
                 },
                 {
                     name: "GIORNO 3",
                     exercises: [
-                        { name: "LAT MACHINE CON TRIANGOLO", target: ["6/8", "6/8", "6/8", "6/8"], weight: ["35", "40", "40", "35"], rep: ["8", "6", "5", "6"] },
-                        { name: "ROWING STRETTA", target: ["10", "8", "6"], weight: ["20", "20", "20"], rep: ["8", "8", "8"] },
-                        { name: "PULLEY", target: ["8/10", "8/10", "8/10", "8/10"], weight: ["25+20", "20", "20", "20"], rep: ["5+3", "9", "7", "8"] },
-                        { name: "PECK BACK", target: ["10", "10", "10"], weight: ["27.5", "27.5", "27.5"], rep: ["8", "7", "8"] },
-                        { name: "FRENCH PRESS BILANC. STESO", target: ["8", "8", "8"], weight: ["7.5", "7.5", "5"], rep: ["7", "5", "8"] },
-                        { name: "PUSH DOWN CON FUNE", target: ["8", "8", "8"], weight: ["15+10", "10", "10"], rep: ["5+5", "9", "8"] }
+                        { name: "LAT MACHINE CON TRIANGOLO", target: ["6/8", "6/8", "6/8", "6/8"] },
+                        { name: "ROWING STRETTA", target: ["10", "8", "6"] },
+                        { name: "PULLEY", target: ["8/10", "8/10", "8/10", "8/10"] },
+                        { name: "PECK BACK", target: ["10", "10", "10"] },
+                        { name: "FRENCH PRESS BILANC. STESO", target: ["8", "8", "8"] },
+                        { name: "PUSH DOWN CON FUNE", target: ["8", "8", "8"] }
                     ]
                 },
                 {
                     name: "GIORNO 4",
                     exercises: [
-                        { name: "PEC FLY", target: ["10", "10", "10"], weight: ["27.5", "27.5", "27.5"], rep: ["8", "8", "7"] },
-                        { name: "PANCA 30° AL MULTIPOWER", target: ["10", "8", "6"], weight: ["2.5", "2.5", "2.5"], rep: ["N/A", "N/A", "N/A"] },
-                        { name: "REMATORE BILANC PRESA INVERSA", target: ["10", "8", "6"], weight: ["15", "15", "15"], rep: ["10", "10", "10"] },
-                        { name: "CURL MARTELLO IN PIEDI + PUSH DOWN CON ASTA CURVA", target: ["8", "8", "8"], weight: ["5+30", "5+30", "5+30"], rep: ["10+8", "10+8", "10+7"] },
-                        { name: "HACK SQUAT", target: ["8/10", "8/10", "8/10"], weight: ["VUOTO", "VUOTO", "VUOTO"], rep: ["6", "6", "6"] },
-                        { name: "AFFONDI SUL POSTO", target: ["10", "10", "10"], weight: ["N/A", "N/A", "N/A"], rep: ["N/A", "N/A", "N/A"] }
+                        { name: "PEC FLY", target: ["10", "10", "10"] },
+                        { name: "PANCA 30° AL MULTIPOWER", target: ["10", "8", "6"] },
+                        { name: "REMATORE BILANC PRESA INVERSA", target: ["10", "8", "6"] },
+                        { name: "CURL MARTELLO IN PIEDI + PUSH DOWN CON ASTA CURVA", target: ["8", "8", "8"] },
+                        { name: "HACK SQUAT", target: ["8/10", "8/10", "8/10"] },
+                        { name: "AFFONDI SUL POSTO", target: ["10", "10", "10"] }
                     ]
                 }
             ]
         };
 
-        // State Management
-        let appState = {
-            routines: [],
-            currentView: 'home', // 'home', 'routine-detail', 'archive'
-            currentRoutineId: null,
-            currentDayIndex: 0,
-            archiveSortOrder: 'desc' // 'desc' | 'asc'
+        const INITIAL_ROUTINE_COMPLETED = {
+            id: "routine_21_10_2026",
+            title: "Scheda 21 Ottobre 2026",
+            createdDate: "2026-10-21T09:00:00.000Z",
+            schedaId: "default_scheda_base",
+            days: [
+                {
+                    name: "GIORNO 1",
+                    exercises: [
+                        { name: "CHEST PRESS", target: ["8", "8", "8", "8"], weight: ["N/A", "N/A", "N/A", "N/A"], rep: ["N/A", "N/A", "N/A", "N/A"], note: "" },
+                        { name: "PECTORAL MACHINE", target: ["10", "8", "6"], weight: ["N/A", "N/A", "N/A"], rep: ["N/A", "N/A", "N/A"], note: "" },
+                        { name: "CHEST INCLINE", target: ["8", "8", "8", "8"], weight: ["15", "15", "12.5", "N/A"], rep: ["8", "5", "5", "N/A"], note: "" },
+                        { name: "ALZATE FRONTALI CON BILANC.", target: ["12", "12", "12"], weight: ["N/A", "N/A", "N/A"], rep: ["N/A", "N/A", "N/A"], note: "" },
+                        { name: "CURL BILANC. IN PIEDI", target: ["10/8", "10/8", "10/8"], weight: ["N/A", "N/A", "N/A"], rep: ["N/A", "N/A", "N/A"], note: "" },
+                        { name: "CURL MACHINE SINGOLA", target: ["8", "8", "8"], weight: ["N/A", "N/A", "N/A"], rep: ["N/A", "N/A", "N/A"], note: "" }
+                    ]
+                },
+                {
+                    name: "GIORNO 2",
+                    exercises: [
+                        { name: "LEG EXTENSION", target: ["10", "8", "6"], weight: ["20", "25", "30"], rep: ["10", "8", "8"], note: "" },
+                        { name: "PRESSA 45°", target: ["8/10", "8/10", "8/10"], weight: ["30", "40", "45"], rep: ["10", "10", "8"], note: "" },
+                        { name: "LEG CURL STESO", target: ["10", "10", "10"], weight: ["15", "15", "10"], rep: ["10", "6", "7"], note: "" },
+                        { name: "PENDULUM SQUAT", target: ["8/10", "8/10", "8/10"], weight: ["10", "5", "5"], rep: ["5", "6", "5"], note: "" },
+                        { name: "ALZATE LATERALI SEDUTO", target: ["10", "10", "10", "10"], weight: ["5", "5", "5", "5"], rep: ["10", "11", "10", "8"], note: "" },
+                        { name: "SHOULDER PRESS", target: ["8", "8", "6"], weight: ["20", "20", "25"], rep: ["8", "8", "6"], note: "" }
+                    ]
+                },
+                {
+                    name: "GIORNO 3",
+                    exercises: [
+                        { name: "LAT MACHINE CON TRIANGOLO", target: ["6/8", "6/8", "6/8", "6/8"], weight: ["35", "40", "40", "35"], rep: ["8", "6", "5", "6"], note: "" },
+                        { name: "ROWING STRETTA", target: ["10", "8", "6"], weight: ["20", "20", "20"], rep: ["8", "8", "8"], note: "" },
+                        { name: "PULLEY", target: ["8/10", "8/10", "8/10", "8/10"], weight: ["25+20", "20", "20", "20"], rep: ["5+3", "9", "7", "8"], note: "" },
+                        { name: "PECK BACK", target: ["10", "10", "10"], weight: ["27.5", "27.5", "27.5"], rep: ["8", "7", "8"], note: "" },
+                        { name: "FRENCH PRESS BILANC. STESO", target: ["8", "8", "8"], weight: ["7.5", "7.5", "5"], rep: ["7", "5", "8"], note: "" },
+                        { name: "PUSH DOWN CON FUNE", target: ["8", "8", "8"], weight: ["15+10", "10", "10"], rep: ["5+5", "9", "8"], note: "" }
+                    ]
+                },
+                {
+                    name: "GIORNO 4",
+                    exercises: [
+                        { name: "PEC FLY", target: ["10", "10", "10"], weight: ["27.5", "27.5", "27.5"], rep: ["8", "8", "7"], note: "" },
+                        { name: "PANCA 30° AL MULTIPOWER", target: ["10", "8", "6"], weight: ["2.5", "2.5", "2.5"], rep: ["N/A", "N/A", "N/A"], note: "" },
+                        { name: "REMATORE BILANC PRESA INVERSA", target: ["10", "8", "6"], weight: ["15", "15", "15"], rep: ["10", "10", "10"], note: "" },
+                        { name: "CURL MARTELLO IN PIEDI + PUSH DOWN CON ASTA CURVA", target: ["8", "8", "8"], weight: ["5+30", "5+30", "5+30"], rep: ["10+8", "10+8", "10+7"], note: "" },
+                        { name: "HACK SQUAT", target: ["8/10", "8/10", "8/10"], weight: ["VUOTO", "VUOTO", "VUOTO"], rep: ["6", "6", "6"], note: "" },
+                        { name: "AFFONDI SUL POSTO", target: ["10", "10", "10"], weight: ["N/A", "N/A", "N/A"], rep: ["N/A", "N/A", "N/A"], note: "" }
+                    ]
+                }
+            ]
         };
 
-        // Swipe Gesture Handling state
+        // App State
+        let appState = {
+            schede: [],
+            routines: [],
+            lastUsedSchedaId: null,
+            currentView: 'home', // 'home', 'routine-detail', 'archive', 'schede-list', 'scheda-builder', 'scheda-select'
+            currentRoutineId: null,
+            currentDayIndex: 0,
+            archiveSortOrder: 'desc',
+            
+            // Temporary builder state for creating/editing a Scheda
+            builderScheda: null,
+            builderCurrentDay: 0,
+            deleteExerciseMode: false
+        };
+
+        // Touch Swipe
         let touchStartX = 0;
         let touchEndX = 0;
 
-        // Initialize App
         window.addEventListener('DOMContentLoaded', () => {
             loadFromLocalStorage();
             renderApp();
             lucide.createIcons();
         });
 
-        // Local Storage Helpers
         function loadFromLocalStorage() {
-            const saved = localStorage.getItem('gym_tracker_data_v1');
-            if (saved) {
-                try {
-                    appState.routines = JSON.parse(saved);
-                } catch (e) {
-                    console.error("Error loading localStorage data", e);
-                    appState.routines = [JSON.parse(JSON.stringify(INITIAL_ROUTINE))];
-                }
-            } else {
-                appState.routines = [JSON.parse(JSON.stringify(INITIAL_ROUTINE))];
-                saveToLocalStorage();
+            const savedSchede = localStorage.getItem('gt_schede_v2');
+            const savedRoutines = localStorage.getItem('gt_routines_v2');
+            const savedLastScheda = localStorage.getItem('gt_last_scheda_id');
+
+            if (savedSchede) {
+                try { appState.schede = JSON.parse(savedSchede); } catch(e) { appState.schede = []; }
             }
+            if (!appState.schede || appState.schede.length === 0) {
+                appState.schede = [JSON.parse(JSON.stringify(DEFAULT_SCHEDA))];
+            }
+
+            if (savedRoutines) {
+                try { appState.routines = JSON.parse(savedRoutines); } catch(e) { appState.routines = []; }
+            }
+            if (!appState.routines || appState.routines.length === 0) {
+                appState.routines = [JSON.parse(JSON.stringify(INITIAL_ROUTINE_COMPLETED))];
+            }
+
+            // Ensure notes field exists in older saved entries
+            appState.routines.forEach(r => {
+                r.days.forEach(d => {
+                    d.exercises.forEach(ex => {
+                        if (ex.note === undefined) ex.note = "";
+                    });
+                });
+            });
+
+            appState.lastUsedSchedaId = savedLastScheda || appState.schede[0].id;
+            saveToLocalStorage();
         }
 
         function saveToLocalStorage() {
-            localStorage.setItem('gym_tracker_data_v1', JSON.stringify(appState.routines));
+            localStorage.setItem('gt_schede_v2', JSON.stringify(appState.schede));
+            localStorage.setItem('gt_routines_v2', JSON.stringify(appState.routines));
+            if (appState.lastUsedSchedaId) {
+                localStorage.setItem('gt_last_scheda_id', appState.lastUsedSchedaId);
+            }
         }
 
-        // Routine Status Helper
-        // Check if all fields (weight & rep) for all exercises in a day or routine are filled
         function isDayComplete(day) {
             return day.exercises.every(ex => {
                 for (let i = 0; i < ex.target.length; i++) {
@@ -238,61 +319,59 @@
             return routine.days.every(day => isDayComplete(day));
         }
 
-        // Get the active routine (most recent unfinished or most recent overall)
-        function getActiveRoutine() {
-            if (appState.routines.length === 0) return null;
-            // Sort by date desc
+        function getActiveIncompleteRoutine() {
             const sorted = [...appState.routines].sort((a,b) => new Date(b.createdDate) - new Date(a.createdDate));
-            // Find first incomplete
-            const incomplete = sorted.find(r => !isRoutineComplete(r));
-            return incomplete || sorted[0];
+            return sorted.find(r => !isRoutineComplete(r));
         }
 
         function getNextIncompleteDayIndex(routine) {
             if (!routine) return 0;
             for (let i = 0; i < routine.days.length; i++) {
-                if (!isDayComplete(routine.days[i])) {
-                    return i;
-                }
+                if (!isDayComplete(routine.days[i])) return i;
             }
-            return 0; // default to first if all complete
+            return 0;
         }
 
-        function getLatestCompletedRoutine() {
-            const sorted = [...appState.routines].sort((a,b) => new Date(b.createdDate) - new Date(a.createdDate));
-            return sorted.find(r => isRoutineComplete(r)) || sorted[0];
-        }
-
-        // Navigation Controller
         function navigateTo(view, params = {}) {
             appState.currentView = view;
             if (params.routineId) appState.currentRoutineId = params.routineId;
             if (params.dayIndex !== undefined) appState.currentDayIndex = params.dayIndex;
-            
             renderApp();
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        // Main Render Function
         function renderApp() {
             const mainContent = document.getElementById('main-content');
             const headerActions = document.getElementById('header-actions');
             mainContent.innerHTML = '';
             headerActions.innerHTML = '';
 
-            if (appState.currentView === 'home') {
-                renderHomeView(mainContent, headerActions);
-            } else if (appState.currentView === 'routine-detail') {
-                renderRoutineDetailView(mainContent, headerActions);
-            } else if (appState.currentView === 'archive') {
-                renderArchiveView(mainContent, headerActions);
+            switch (appState.currentView) {
+                case 'home':
+                    renderHomeView(mainContent, headerActions);
+                    break;
+                case 'scheda-select':
+                    renderSchedaSelectView(mainContent, headerActions);
+                    break;
+                case 'schede-list':
+                    renderSchedeListView(mainContent, headerActions);
+                    break;
+                case 'scheda-builder':
+                    renderSchedaBuilderView(mainContent, headerActions);
+                    break;
+                case 'routine-detail':
+                    renderRoutineDetailView(mainContent, headerActions);
+                    break;
+                case 'archive':
+                    renderArchiveView(mainContent, headerActions);
+                    break;
             }
 
             lucide.createIcons();
         }
 
         // =========================================================================
-        // VIEW 1: HOME SCREEN
+        // VIEW: HOME SCREEN
         // =========================================================================
         function renderHomeView(container, headerActions) {
             headerActions.innerHTML = `
@@ -302,142 +381,459 @@
                 </button>
             `;
 
-            const activeRoutine = getActiveRoutine();
-            const isIncomplete = activeRoutine && !isRoutineComplete(activeRoutine);
+            const activeRoutine = getActiveIncompleteRoutine();
+            const isIncomplete = !!activeRoutine;
             const nextDayIdx = isIncomplete ? getNextIncompleteDayIndex(activeRoutine) : 0;
-            const completedCount = appState.routines.filter(r => isRoutineComplete(r)).length;
 
-            let html = `
-                <div class="space-y-6 animate-fade-in">
+            container.innerHTML = `
+                <div class="space-y-5 animate-fade-in">
                     
-                    <!-- HERO WELCOME & QUICK CREATION -->
                     <div class="p-5 rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 border border-slate-800 shadow-xl relative overflow-hidden">
                         <div class="absolute -right-6 -bottom-6 w-32 h-32 bg-brand-500/10 rounded-full blur-2xl"></div>
-                        
                         <div class="relative z-10 space-y-4">
                             <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-500 text-xs font-medium">
                                 <span class="w-2 h-2 rounded-full bg-brand-500 animate-pulse"></span>
-                                <span>Allenamento in Corso</span>
+                                <span>Allenamento GymTrack</span>
                             </div>
-
                             <h2 class="text-2xl font-black text-white tracking-tight">Cosa vuoi fare oggi?</h2>
                             
-                            <button onclick="createNewRoutine()" class="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-brand-500 to-emerald-500 hover:from-brand-600 hover:to-emerald-600 text-slate-950 font-extrabold flex items-center justify-center space-x-2 shadow-lg shadow-brand-500/25 transition active:scale-[0.98]">
-                                <i data-lucide="plus-circle" class="w-5 h-5"></i>
-                                <span>Crea Nuova Routine</span>
+                            <button onclick="navigateTo('scheda-select')" class="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-brand-500 to-emerald-500 hover:from-brand-600 hover:to-emerald-600 text-slate-950 font-extrabold flex items-center justify-center space-x-2 shadow-lg shadow-brand-500/20 transition active:scale-[0.98]">
+                                <i data-lucide="play-circle" class="w-5 h-5"></i>
+                                <span>Nuova Routine</span>
                             </button>
                         </div>
                     </div>
 
-                    <!-- SMART BANNER: CONTINUA ALLENAMENTO (IF INCOMPLETE) -->
                     ${isIncomplete ? `
-                        <div class="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 shadow-lg relative overflow-hidden">
+                        <div class="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 shadow-lg space-y-3">
                             <div class="flex items-start justify-between">
-                                <div class="space-y-1">
-                                    <span class="text-[11px] font-black uppercase tracking-wider text-amber-400">Progresso Incompleto</span>
-                                    <h3 class="text-lg font-bold text-white">${activeRoutine.title}</h3>
+                                <div class="space-y-0.5">
+                                    <span class="text-[10px] font-black uppercase tracking-wider text-amber-400">Allenamento In Corso</span>
+                                    <h3 class="text-base font-bold text-white">${escapeHtml(activeRoutine.title)}</h3>
                                     <p class="text-xs text-slate-300">
-                                        Prossimo allenamento: <strong class="text-brand-500 font-bold">${activeRoutine.days[nextDayIdx].name}</strong>
+                                        Prossimo: <strong class="text-brand-500">${escapeHtml(activeRoutine.days[nextDayIdx].name)}</strong>
                                     </p>
                                 </div>
                                 <span class="p-2 rounded-xl bg-amber-500/20 text-amber-400">
                                     <i data-lucide="flame" class="w-5 h-5"></i>
                                 </span>
                             </div>
-                            <button onclick="navigateTo('routine-detail', { routineId: '${activeRoutine.id}', dayIndex: ${nextDayIdx} })" class="mt-3 w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm flex items-center justify-center space-x-2 transition active:scale-[0.98]">
-                                <i data-lucide="play" class="w-4 h-4 fill-current"></i>
-                                <span>Continua Allenamento (${activeRoutine.days[nextDayIdx].name})</span>
-                            </button>
+
+                            <div class="grid grid-cols-1 gap-2 pt-1">
+                                <button onclick="navigateTo('routine-detail', { routineId: '${activeRoutine.id}', dayIndex: ${nextDayIdx} })" class="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center justify-center space-x-2 transition active:scale-[0.98]">
+                                    <i data-lucide="play" class="w-4 h-4 fill-current"></i>
+                                    <span>Continua Allenamento</span>
+                                </button>
+                                <button onclick="confirmTerminateWorkout('${activeRoutine.id}')" class="w-full py-2 px-4 rounded-xl bg-red-950/60 hover:bg-red-900/60 border border-red-800/50 text-red-400 font-semibold text-xs flex items-center justify-center space-x-1.5 transition">
+                                    <i data-lucide="stop-circle" class="w-4 h-4"></i>
+                                    <span>Interrompi Allenamento</span>
+                                </button>
+                            </div>
                         </div>
                     ` : ''}
 
-                    <!-- QUICK ACTIONS GRID -->
                     <div class="grid grid-cols-2 gap-3">
-                        <button onclick="openLatestRoutine()" class="p-4 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-left transition flex flex-col justify-between space-y-3 group">
+                        <button onclick="navigateTo('schede-list')" class="p-4 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-left transition flex flex-col justify-between space-y-3 group">
                             <div class="p-2.5 rounded-xl bg-slate-800 text-brand-500 w-max group-hover:bg-brand-500 group-hover:text-slate-950 transition">
-                                <i data-lucide="history" class="w-5 h-5"></i>
+                                <i data-lucide="file-plus-2" class="w-5 h-5"></i>
                             </div>
                             <div>
-                                <h4 class="font-bold text-sm text-white">Ultima Routine</h4>
-                                <p class="text-[11px] text-slate-400 mt-0.5">Vedi l'ultima scheda eseguita</p>
+                                <h4 class="font-bold text-sm text-white">Gestione Schede</h4>
+                                <p class="text-[11px] text-slate-400 mt-0.5">Crea, modifica ed elimina modelli</p>
                             </div>
                         </button>
 
                         <button onclick="navigateTo('archive')" class="p-4 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-left transition flex flex-col justify-between space-y-3 group">
                             <div class="p-2.5 rounded-xl bg-slate-800 text-emerald-400 w-max group-hover:bg-emerald-400 group-hover:text-slate-950 transition">
-                                <i data-lucide="layers" class="w-5 h-5"></i>
+                                <i data-lucide="history" class="w-5 h-5"></i>
                             </div>
                             <div>
-                                <h4 class="font-bold text-sm text-white">Tutte le Routine</h4>
-                                <p class="text-[11px] text-slate-400 mt-0.5">${appState.routines.length} schede salvate</p>
+                                <h4 class="font-bold text-sm text-white">Archivio Routine</h4>
+                                <p class="text-[11px] text-slate-400 mt-0.5">${appState.routines.length} allenamenti registrati</p>
                             </div>
                         </button>
                     </div>
 
-                    <!-- STATS / RECENT OVERVIEW -->
-                    <div class="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 space-y-3">
-                        <div class="flex items-center justify-between text-xs text-slate-400 font-semibold uppercase tracking-wider">
-                            <span>Panoramica Attività</span>
-                            <i data-lucide="activity" class="w-4 h-4 text-brand-500"></i>
-                        </div>
-                        <div class="grid grid-cols-2 gap-2 text-center">
-                            <div class="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
-                                <span class="block text-xl font-black text-white">${appState.routines.length}</span>
-                                <span class="text-[11px] text-slate-400">Totale Schede</span>
-                            </div>
-                            <div class="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
-                                <span class="block text-xl font-black text-brand-500">${completedCount}</span>
-                                <span class="text-[11px] text-slate-400">Completate</span>
-                            </div>
-                        </div>
-                    </div>
-
                 </div>
             `;
-
-            container.innerHTML = html;
         }
 
-        // Handler to create a brand new routine with blank fields
-        function createNewRoutine() {
+        function confirmTerminateWorkout(routineId) {
+            showModal("Interrompi Allenamento", "Tutti i campi rimasti vuoti verranno compilati con N/A e l'allenamento verrà segnato come terminato. Continuare?", () => {
+                terminateWorkout(routineId);
+            });
+        }
+
+        function terminateWorkout(routineId) {
+            const routine = appState.routines.find(r => r.id === routineId);
+            if (!routine) return;
+
+            routine.days.forEach(d => {
+                d.exercises.forEach(ex => {
+                    for (let i = 0; i < ex.target.length; i++) {
+                        if (!ex.weight[i] || ex.weight[i].toString().trim() === "") {
+                            ex.weight[i] = "N/A";
+                        }
+                        if (!ex.rep[i] || ex.rep[i].toString().trim() === "") {
+                            ex.rep[i] = "N/A";
+                        }
+                    }
+                });
+            });
+
+            saveToLocalStorage();
+            showToast("Allenamento terminato e salvato!");
+            navigateTo('home');
+        }
+
+        // =========================================================================
+        // VIEW: SCHEDA SELECT (SELEZIONE SCHEDA PER NUOVA ROUTINE)
+        // =========================================================================
+        function renderSchedaSelectView(container, headerActions) {
+            headerActions.innerHTML = `
+                <button onclick="navigateTo('home')" class="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            `;
+
+            container.innerHTML = `
+                <div class="space-y-4">
+                    <div>
+                        <h2 class="text-xl font-black text-white">Seleziona una Scheda</h2>
+                        <p class="text-xs text-slate-400">Scegli il modello da utilizzare per la nuova routine</p>
+                    </div>
+
+                    <div class="space-y-3">
+                        ${appState.schede.map(scheda => {
+                            const isLastUsed = scheda.id === appState.lastUsedSchedaId;
+                            return `
+                                <div onclick="startRoutineFromScheda('${scheda.id}')" 
+                                    class="p-4 rounded-2xl bg-slate-900 border ${isLastUsed ? 'last-used-glow' : 'border-slate-800 hover:border-slate-700'} transition cursor-pointer flex items-center justify-between group">
+                                    <div class="space-y-1">
+                                        <div class="flex items-center space-x-2">
+                                            <h3 class="font-bold text-white text-base group-hover:text-brand-500 transition">${escapeHtml(scheda.title)}</h3>
+                                            ${isLastUsed ? '<span class="text-[10px] font-black bg-brand-500 text-slate-950 px-2 py-0.5 rounded-full uppercase">Ultima usata</span>' : ''}
+                                        </div>
+                                        <span class="text-xs text-slate-400 block">${scheda.days.length} Giorni • ${scheda.days.reduce((acc, d) => acc + d.exercises.length, 0)} Esercizi tot</span>
+                                    </div>
+                                    <i data-lucide="chevron-right" class="w-5 h-5 text-slate-500 group-hover:text-white transition"></i>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function startRoutineFromScheda(schedaId) {
+            const scheda = appState.schede.find(s => s.id === schedaId);
+            if (!scheda) return;
+
             const todayStr = new Date().toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' });
-            const titleFormatted = `Scheda ${todayStr.charAt(0).toUpperCase() + todayStr.slice(1)}`;
-            
-            // Deep copy structure from the base routine template
-            const baseTemplate = INITIAL_ROUTINE;
+            const titleFormatted = `Routine ${scheda.title} (${todayStr})`;
+
             const newRoutine = {
                 id: `routine_${Date.now()}`,
                 title: titleFormatted,
                 createdDate: new Date().toISOString(),
-                days: baseTemplate.days.map(day => ({
+                schedaId: scheda.id,
+                days: scheda.days.map(day => ({
                     name: day.name,
                     exercises: day.exercises.map(ex => ({
                         name: ex.name,
-                        target: [...ex.target], // Preserve target rep values (non-editable)
-                        weight: new Array(ex.target.length).fill(""), // Empty fields
-                        rep: new Array(ex.target.length).fill("")      // Empty fields
+                        target: [...ex.target],
+                        weight: new Array(ex.target.length).fill(""),
+                        rep: new Array(ex.target.length).fill(""),
+                        note: ""
                     }))
                 }))
             };
 
             appState.routines.unshift(newRoutine);
+            appState.lastUsedSchedaId = scheda.id;
             saveToLocalStorage();
-            showToast("Nuova routine creata con successo!");
+            showToast("Nuova routine avviata!");
             navigateTo('routine-detail', { routineId: newRoutine.id, dayIndex: 0 });
-        }
-
-        function openLatestRoutine() {
-            const routine = getLatestCompletedRoutine();
-            if (routine) {
-                navigateTo('routine-detail', { routineId: routine.id, dayIndex: 0 });
-            } else {
-                showToast("Nessuna routine trovata!");
-            }
         }
 
 
         // =========================================================================
-        // VIEW 2: ROUTINE DETAIL VIEW (SWIPABLE & COMPILABILITY)
+        // VIEW: SCHEDE LIST (GESTIONE SCHEDE)
+        // =========================================================================
+        function renderSchedeListView(container, headerActions) {
+            headerActions.innerHTML = `
+                <button onclick="navigateTo('home')" class="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition">
+                    <i data-lucide="home" class="w-4 h-4"></i>
+                </button>
+            `;
+
+            container.innerHTML = `
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h2 class="text-xl font-black text-white">Gestione Schede</h2>
+                            <p class="text-xs text-slate-400">Modifica o crea nuovi modelli di allenamento</p>
+                        </div>
+                        <button onclick="startSchedaBuilder()" class="p-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-slate-950 font-extrabold text-xs flex items-center space-x-1 shadow-lg shadow-brand-500/20 transition">
+                            <i data-lucide="plus" class="w-4 h-4"></i>
+                            <span>Crea Scheda</span>
+                        </button>
+                    </div>
+
+                    <div class="space-y-3">
+                        ${appState.schede.map(scheda => `
+                            <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <h3 class="font-bold text-white text-base">${escapeHtml(scheda.title)}</h3>
+                                        <span class="text-xs text-slate-400">${scheda.days.length} Giorni previsti</span>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <button onclick="editScheda('${scheda.id}')" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-brand-500 transition">
+                                            <i data-lucide="edit-3" class="w-4 h-4"></i>
+                                        </button>
+                                        <button onclick="confirmDeleteScheda('${scheda.id}')" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-red-400 transition">
+                                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="text-xs text-slate-400 space-y-1">
+                                    ${scheda.days.map(d => `<div class="truncate">• <strong class="text-slate-300">${escapeHtml(d.name)}:</strong> ${d.exercises.length} esercizi</div>`).join('')}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function confirmDeleteScheda(schedaId) {
+            if (appState.schede.length <= 1) {
+                showToast("Devi mantenere almeno una scheda salvata!");
+                return;
+            }
+            showModal("Elimina Scheda", "Sei sicuro di voler eliminare questo modello di scheda?", () => {
+                appState.schede = appState.schede.filter(s => s.id !== schedaId);
+                if (appState.lastUsedSchedaId === schedaId) {
+                    appState.lastUsedSchedaId = appState.schede[0].id;
+                }
+                saveToLocalStorage();
+                showToast("Scheda eliminata!");
+                renderApp();
+            });
+        }
+
+        // =========================================================================
+        // VIEW: SCHEDA BUILDER / EDITOR
+        // =========================================================================
+        function startSchedaBuilder(schedaToEdit = null) {
+            if (schedaToEdit) {
+                appState.builderScheda = JSON.parse(JSON.stringify(schedaToEdit));
+            } else {
+                appState.builderScheda = {
+                    id: `scheda_${Date.now()}`,
+                    title: "Nuova Scheda",
+                    days: [
+                        { name: "GIORNO 1", exercises: [] },
+                        { name: "GIORNO 2", exercises: [] },
+                        { name: "GIORNO 3", exercises: [] },
+                        { name: "GIORNO 4", exercises: [] }
+                    ]
+                };
+            }
+            appState.builderCurrentDay = 0;
+            appState.deleteExerciseMode = false;
+            navigateTo('scheda-builder');
+        }
+
+        function editScheda(schedaId) {
+            const target = appState.schede.find(s => s.id === schedaId);
+            if (target) startSchedaBuilder(target);
+        }
+
+        function renderSchedaBuilderView(container, headerActions) {
+            const scheda = appState.builderScheda;
+            const currentDay = scheda.days[appState.builderCurrentDay] || scheda.days[0];
+
+            headerActions.innerHTML = `
+                <button onclick="cancelSchedaBuilder()" class="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            `;
+
+            container.innerHTML = `
+                <div class="space-y-4">
+                    
+                    <!-- Title & Day count settings -->
+                    <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+                        <div>
+                            <label class="text-xs font-semibold text-slate-400">Titolo della Scheda</label>
+                            <input type="text" value="${escapeHtml(scheda.title)}" onchange="appState.builderScheda.title = this.value" 
+                                class="w-full mt-1 px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl font-bold text-white focus:border-brand-500 focus:outline-none" />
+                        </div>
+                        <div class="flex items-center justify-between pt-1">
+                            <span class="text-xs font-semibold text-slate-400">Numero Giorni</span>
+                            <div class="flex items-center space-x-2">
+                                <button onclick="changeBuilderDayCount(-1)" class="w-8 h-8 rounded-lg bg-slate-800 font-bold text-white hover:bg-slate-700">-</button>
+                                <span class="font-bold text-sm text-white w-6 text-center">${scheda.days.length}</span>
+                                <button onclick="changeBuilderDayCount(1)" class="w-8 h-8 rounded-lg bg-slate-800 font-bold text-white hover:bg-slate-700">+</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Day Navigation Tabs -->
+                    <div class="flex overflow-x-auto gap-1.5 p-1 bg-slate-900 rounded-2xl border border-slate-800">
+                        ${scheda.days.map((day, idx) => `
+                            <button onclick="setBuilderDay(${idx})" class="flex-1 min-w-[70px] py-2 px-2 rounded-xl font-bold text-xs transition ${idx === appState.builderCurrentDay ? 'bg-brand-500 text-slate-950' : 'text-slate-400 hover:text-white'}">
+                                ${escapeHtml(day.name)}
+                            </button>
+                        `).join('')}
+                    </div>
+
+                    <!-- Day Name Config -->
+                    <div class="flex items-center space-x-2">
+                        <label class="text-xs font-semibold text-slate-400 whitespace-nowrap">Nome Giorno:</label>
+                        <input type="text" value="${escapeHtml(currentDay.name)}" onchange="updateBuilderDayName(${appState.builderCurrentDay}, this.value)"
+                            class="w-full px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-bold text-white focus:border-brand-500 focus:outline-none" />
+                    </div>
+
+                    <!-- Exercise List for current day -->
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <h3 class="font-bold text-sm text-slate-300">Esercizi (${currentDay.exercises.length})</h3>
+                            ${appState.deleteExerciseMode ? '<span class="text-xs font-bold text-red-400 animate-pulse">Seleziona un esercizio da eliminare</span>' : ''}
+                        </div>
+
+                        ${currentDay.exercises.length === 0 ? `
+                            <div class="p-6 text-center rounded-2xl bg-slate-900/40 border border-dashed border-slate-800 text-xs text-slate-500">
+                                Nessun esercizio in questo giorno. Clicca + in basso per aggiungerne uno.
+                            </div>
+                        ` : ''}
+
+                        ${currentDay.exercises.map((ex, exIdx) => `
+                            <div onclick="${appState.deleteExerciseMode ? `confirmRemoveBuilderExercise(${exIdx})` : `openEditBuilderExerciseModal(${exIdx})`}"
+                                class="p-3.5 rounded-2xl bg-slate-900 border ${appState.deleteExerciseMode ? 'border-red-500/50 hover:bg-red-950/20' : 'border-slate-800 hover:border-slate-700'} transition cursor-pointer flex items-center justify-between">
+                                <div>
+                                    <h4 class="font-bold text-sm text-white">${escapeHtml(ex.name)}</h4>
+                                    <p class="text-xs text-slate-400 font-mono mt-0.5">${ex.target.length} Serie [${ex.target.join(' - ')}]</p>
+                                </div>
+                                <i data-lucide="${appState.deleteExerciseMode ? 'minus-circle' : 'edit-2'}" class="w-4 h-4 ${appState.deleteExerciseMode ? 'text-red-400' : 'text-slate-500'}"></i>
+                            </div>
+                        `).join('')}
+                    </div>
+
+                    <!-- Builder Action Buttons (+ / -) -->
+                    <div class="grid grid-cols-2 gap-3 pt-2">
+                        <button onclick="openAddBuilderExerciseModal()" class="py-3 px-4 rounded-2xl bg-brand-500 hover:bg-brand-600 text-slate-950 font-extrabold text-xs flex items-center justify-center space-x-2 transition shadow-lg shadow-brand-500/20">
+                            <i data-lucide="plus" class="w-4 h-4"></i>
+                            <span>Aggiungi Esercizio</span>
+                        </button>
+
+                        <button onclick="toggleDeleteBuilderExerciseMode()" class="py-3 px-4 rounded-2xl ${appState.deleteExerciseMode ? 'bg-red-500 text-white' : 'bg-slate-800 hover:bg-slate-700 text-red-400'} font-extrabold text-xs flex items-center justify-center space-x-2 transition border border-slate-700">
+                            <i data-lucide="minus" class="w-4 h-4"></i>
+                            <span>Elimina Esercizio</span>
+                        </button>
+                    </div>
+
+                    <!-- Save / Cancel -->
+                    <div class="pt-4 border-t border-slate-800 flex items-center space-x-3">
+                        <button onclick="cancelSchedaBuilder()" class="flex-1 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition">
+                            Annulla
+                        </button>
+                        <button onclick="saveSchedaBuilder()" class="flex-1 py-3 rounded-2xl bg-gradient-to-r from-brand-500 to-emerald-500 text-slate-950 font-black text-xs transition shadow-lg shadow-brand-500/20">
+                            Salva Scheda
+                        </button>
+                    </div>
+
+                </div>
+            `;
+        }
+
+        function setBuilderDay(idx) {
+            appState.builderCurrentDay = idx;
+            appState.deleteExerciseMode = false;
+            renderApp();
+        }
+
+        function updateBuilderDayName(dayIdx, newName) {
+            if (newName.trim() !== "") {
+                appState.builderScheda.days[dayIdx].name = newName.trim();
+            }
+        }
+
+        function changeBuilderDayCount(delta) {
+            const days = appState.builderScheda.days;
+            const newCount = days.length + delta;
+            if (newCount < 1 || newCount > 7) return;
+
+            if (delta > 0) {
+                days.push({ name: `GIORNO ${newCount}`, exercises: [] });
+            } else {
+                days.pop();
+                if (appState.builderCurrentDay >= newCount) {
+                    appState.builderCurrentDay = newCount - 1;
+                }
+            }
+            renderApp();
+        }
+
+        function toggleDeleteBuilderExerciseMode() {
+            appState.deleteExerciseMode = !appState.deleteExerciseMode;
+            renderApp();
+        }
+
+        function confirmRemoveBuilderExercise(exIdx) {
+            showModal("Elimina Esercizio", "Sei sicuro di voler eliminare questo esercizio?", () => {
+                appState.builderScheda.days[appState.builderCurrentDay].exercises.splice(exIdx, 1);
+                appState.deleteExerciseMode = false;
+                renderApp();
+            });
+        }
+
+        function cancelSchedaBuilder() {
+            appState.builderScheda = null;
+            navigateTo('schede-list');
+        }
+
+        function saveSchedaBuilder() {
+            const scheda = appState.builderScheda;
+            if (!scheda.title.trim()) {
+                showToast("Inserisci un titolo per la scheda!");
+                return;
+            }
+
+            const existingIdx = appState.schede.findIndex(s => s.id === scheda.id);
+            if (existingIdx >= 0) {
+                appState.schede[existingIdx] = scheda;
+            } else {
+                appState.schede.push(scheda);
+            }
+
+            saveToLocalStorage();
+            showToast("Scheda salvata!");
+            appState.builderScheda = null;
+            navigateTo('schede-list');
+        }
+
+        // Add / Edit Exercise Modal for Builder
+        function openAddBuilderExerciseModal() {
+            openExerciseEditorModal(null, (newEx) => {
+                appState.builderScheda.days[appState.builderCurrentDay].exercises.push(newEx);
+                renderApp();
+            });
+        }
+
+        function openEditBuilderExerciseModal(exIdx) {
+            const currentEx = appState.builderScheda.days[appState.builderCurrentDay].exercises[exIdx];
+            openExerciseEditorModal(currentEx, (updatedEx) => {
+                appState.builderScheda.days[appState.builderCurrentDay].exercises[exIdx] = updatedEx;
+                renderApp();
+            });
+        }
+
+
+        // =========================================================================
+        // VIEW: ROUTINE DETAIL (ACTIVE OR ARCHIVED ROUTINE)
         // =========================================================================
         function renderRoutineDetailView(container, headerActions) {
             const routine = appState.routines.find(r => r.id === appState.currentRoutineId) || appState.routines[0];
@@ -446,13 +842,11 @@
                 return;
             }
 
-            // Find index of current routine in sorted timeline for swipe navigation
             const sortedRoutines = [...appState.routines].sort((a,b) => new Date(b.createdDate) - new Date(a.createdDate));
             const rIndex = sortedRoutines.findIndex(r => r.id === routine.id);
-            const prevRoutine = sortedRoutines[rIndex + 1]; // Older
-            const nextRoutine = sortedRoutines[rIndex - 1]; // Newer
+            const prevRoutine = sortedRoutines[rIndex + 1];
+            const nextRoutine = sortedRoutines[rIndex - 1];
 
-            // Header Action Buttons
             headerActions.innerHTML = `
                 <button onclick="downloadDocx('${routine.id}')" title="Scarica .DOCX" class="p-2 rounded-xl bg-slate-800 text-brand-500 hover:text-white hover:bg-slate-700 transition">
                     <i data-lucide="file-down" class="w-4 h-4"></i>
@@ -464,10 +858,10 @@
 
             const currentDay = routine.days[appState.currentDayIndex] || routine.days[0];
 
-            let html = `
+            container.innerHTML = `
                 <div class="space-y-4 select-none" id="swipe-container">
                     
-                    <!-- ROUTINE HEADER & NAVIGATION -->
+                    <!-- Header Routine Navigation -->
                     <div class="space-y-3">
                         <div class="flex items-center justify-between">
                             <button onclick="navigateRoutineSwipe('right')" ${!prevRoutine ? 'disabled class="opacity-30 p-1.5 rounded-lg bg-slate-900 border border-slate-800"' : 'class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 transition"'}>
@@ -485,13 +879,13 @@
                             </button>
                         </div>
 
-                        <!-- DAY SELECTION TABS -->
-                        <div class="grid grid-cols-4 gap-1.5 bg-slate-900 p-1 rounded-2xl border border-slate-800">
+                        <!-- Days Tabs -->
+                        <div class="flex overflow-x-auto gap-1 bg-slate-900 p-1 rounded-2xl border border-slate-800">
                             ${routine.days.map((day, idx) => {
                                 const active = idx === appState.currentDayIndex;
                                 const dayDone = isDayComplete(day);
                                 return `
-                                    <button onclick="switchDay(${idx})" class="py-2 px-1 rounded-xl font-bold text-xs transition flex flex-col items-center justify-center space-y-0.5 ${active ? 'bg-brand-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'}">
+                                    <button onclick="switchDay(${idx})" class="flex-1 min-w-[60px] py-2 px-1 rounded-xl font-bold text-xs transition flex flex-col items-center justify-center space-y-0.5 ${active ? 'bg-brand-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'}">
                                         <span>G${idx+1}</span>
                                         <span class="w-1.5 h-1.5 rounded-full ${dayDone ? (active ? 'bg-slate-950' : 'bg-brand-500') : 'bg-slate-700'}"></span>
                                     </button>
@@ -500,12 +894,12 @@
                         </div>
                     </div>
 
-                    <!-- CURRENT DAY EXERCISES LIST -->
+                    <!-- Current Day Card -->
                     <div id="routine-card-body" class="swipe-card space-y-4">
                         <div class="flex items-center justify-between px-1">
                             <h3 class="font-extrabold text-white text-base flex items-center space-x-2">
                                 <span class="w-2 h-4 bg-brand-500 rounded-full"></span>
-                                <span>${currentDay.name}</span>
+                                <span>${escapeHtml(currentDay.name)}</span>
                             </h3>
                             <span class="text-xs px-2.5 py-1 rounded-full ${isDayComplete(currentDay) ? 'bg-brand-500/10 text-brand-500 border border-brand-500/30' : 'bg-slate-800 text-slate-400'} font-semibold">
                                 ${isDayComplete(currentDay) ? 'Completato' : 'In corso'}
@@ -515,8 +909,12 @@
                         ${currentDay.exercises.map((ex, exIdx) => `
                             <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 shadow-md space-y-3">
                                 <div class="flex items-center justify-between">
-                                    <h4 class="font-bold text-sm text-slate-100 tracking-wide">${ex.name}</h4>
-                                    <span class="text-[10px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded-md font-mono">${ex.target.length} Serie</span>
+                                    <h4 class="font-bold text-sm text-slate-100 tracking-wide">${escapeHtml(ex.name)}</h4>
+                                    <button onclick="openEditActiveExerciseModal('${routine.id}', ${appState.currentDayIndex}, ${exIdx})" 
+                                        class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-brand-500 transition text-xs flex items-center space-x-1">
+                                        <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                                        <span>Modifica</span>
+                                    </button>
                                 </div>
 
                                 <!-- Exercise Table -->
@@ -529,32 +927,27 @@
                                             </tr>
                                         </thead>
                                         <tbody class="divide-y divide-slate-800/50 text-xs">
-                                            <!-- Row: OBIETTIVO (Non Editable) -->
                                             <tr>
                                                 <td class="py-2 font-semibold text-slate-400 text-left">Obiettivo</td>
                                                 ${ex.target.map(t => `
                                                     <td class="py-2 font-mono font-bold text-amber-400 bg-slate-950/40">${t}</td>
                                                 `).join('')}
                                             </tr>
-                                            <!-- Row: PESO (Editable) -->
                                             <tr>
                                                 <td class="py-2 font-semibold text-slate-300 text-left">Peso (kg)</td>
                                                 ${ex.weight.map((w, sIdx) => `
                                                     <td class="py-1 px-1">
-                                                        <input type="text" value="${escapeHtml(w)}" 
-                                                            placeholder="--"
+                                                        <input type="text" value="${escapeHtml(w)}" placeholder="--"
                                                             onchange="updateExerciseData('${routine.id}', ${appState.currentDayIndex}, ${exIdx}, 'weight', ${sIdx}, this.value)"
                                                             class="w-full py-1.5 text-center font-bold text-white bg-slate-950 border border-slate-800 rounded-lg focus:border-brand-500 focus:bg-slate-900 focus:outline-none transition" />
                                                     </td>
                                                 `).join('')}
                                             </tr>
-                                            <!-- Row: REP (Editable) -->
                                             <tr>
                                                 <td class="py-2 font-semibold text-slate-300 text-left">Rep svolte</td>
                                                 ${ex.rep.map((r, sIdx) => `
                                                     <td class="py-1 px-1">
-                                                        <input type="text" value="${escapeHtml(r)}" 
-                                                            placeholder="--"
+                                                        <input type="text" value="${escapeHtml(r)}" placeholder="--"
                                                             onchange="updateExerciseData('${routine.id}', ${appState.currentDayIndex}, ${exIdx}, 'rep', ${sIdx}, this.value)"
                                                             class="w-full py-1.5 text-center font-bold text-white bg-slate-950 border border-slate-800 rounded-lg focus:border-brand-500 focus:bg-slate-900 focus:outline-none transition" />
                                                     </td>
@@ -563,15 +956,23 @@
                                         </tbody>
                                     </table>
                                 </div>
+
+                                <!-- Exercise Note Area -->
+                                <div class="pt-1">
+                                    <textarea placeholder="Aggiungi note sull'esercizio (es. sensazioni, sedile...)"
+                                        onchange="updateExerciseNote('${routine.id}', ${appState.currentDayIndex}, ${exIdx}, this.value)"
+                                        rows="2"
+                                        class="w-full px-3 py-2 text-xs bg-slate-950 border border-slate-800 rounded-xl text-slate-300 placeholder-slate-600 focus:border-brand-500 focus:outline-none resize-none transition">${escapeHtml(ex.note || '')}</textarea>
+                                </div>
                             </div>
                         `).join('')}
                     </div>
 
-                    <!-- EXPORT / FOOTER ACTION -->
+                    <!-- Footer options -->
                     <div class="pt-2 flex items-center justify-between">
                         <button onclick="confirmDeleteRoutine('${routine.id}')" class="text-xs text-red-400 hover:text-red-300 flex items-center space-x-1 p-2 rounded-lg hover:bg-red-500/10 transition">
                             <i data-lucide="trash-2" class="w-4 h-4"></i>
-                            <span>Elimina Scheda</span>
+                            <span>Elimina Routine</span>
                         </button>
 
                         <button onclick="downloadDocx('${routine.id}')" class="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-brand-500 font-bold text-xs flex items-center space-x-2 transition border border-slate-700">
@@ -583,35 +984,19 @@
                 </div>
             `;
 
-            container.innerHTML = html;
-
-            // Setup Touch Swipe Listeners
             const swipeElement = document.getElementById('swipe-container');
             if (swipeElement) {
-                swipeElement.addEventListener('touchstart', e => {
-                    touchStartX = e.changedTouches[0].screenX;
-                }, { passive: true });
-
-                swipeElement.addEventListener('touchend', e => {
-                    touchEndX = e.changedTouches[0].screenX;
-                    handleSwipeGesture();
-                }, { passive: true });
+                swipeElement.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; }, { passive: true });
+                swipeElement.addEventListener('touchend', e => { touchEndX = e.changedTouches[0].screenX; handleSwipeGesture(); }, { passive: true });
             }
         }
 
-        // Handle touch swipes between routines
         function handleSwipeGesture() {
-            const threshold = 60; // Minimum px distance to trigger swipe
+            const threshold = 60;
             const diff = touchEndX - touchStartX;
-
             if (Math.abs(diff) > threshold) {
-                if (diff < 0) {
-                    // Swiped Left -> Load Next (Newer) Routine
-                    navigateRoutineSwipe('left');
-                } else {
-                    // Swiped Right -> Load Previous (Older) Routine
-                    navigateRoutineSwipe('right');
-                }
+                if (diff < 0) navigateRoutineSwipe('left');
+                else navigateRoutineSwipe('right');
             }
         }
 
@@ -620,11 +1005,8 @@
             const rIndex = sortedRoutines.findIndex(r => r.id === appState.currentRoutineId);
             
             let targetRoutine = null;
-            if (direction === 'left' && rIndex > 0) {
-                targetRoutine = sortedRoutines[rIndex - 1]; // Newer
-            } else if (direction === 'right' && rIndex < sortedRoutines.length - 1) {
-                targetRoutine = sortedRoutines[rIndex + 1]; // Older
-            }
+            if (direction === 'left' && rIndex > 0) targetRoutine = sortedRoutines[rIndex - 1];
+            else if (direction === 'right' && rIndex < sortedRoutines.length - 1) targetRoutine = sortedRoutines[rIndex + 1];
 
             if (targetRoutine) {
                 const cardBody = document.getElementById('routine-card-body');
@@ -661,6 +1043,14 @@
             }
         }
 
+        function updateExerciseNote(routineId, dayIdx, exIdx, noteValue) {
+            const routine = appState.routines.find(r => r.id === routineId);
+            if (routine) {
+                routine.days[dayIdx].exercises[exIdx].note = noteValue;
+                saveToLocalStorage();
+            }
+        }
+
         function confirmDeleteRoutine(routineId) {
             showModal("Elimina Routine", "Sei sicuro di voler eliminare definitivamente questa scheda?", () => {
                 appState.routines = appState.routines.filter(r => r.id !== routineId);
@@ -670,9 +1060,36 @@
             });
         }
 
+        // Active Exercise Editor Modal
+        function openEditActiveExerciseModal(routineId, dayIdx, exIdx) {
+            const routine = appState.routines.find(r => r.id === routineId);
+            if (!routine) return;
+
+            const ex = routine.days[dayIdx].exercises[exIdx];
+            openExerciseEditorModal(ex, (updatedEx) => {
+                // Adjust weight and rep arrays according to new series count
+                const newLength = updatedEx.target.length;
+                const newWeight = [];
+                const newRep = [];
+                for (let i = 0; i < newLength; i++) {
+                    newWeight.push(ex.weight[i] !== undefined ? ex.weight[i] : "");
+                    newRep.push(ex.rep[i] !== undefined ? ex.rep[i] : "");
+                }
+
+                ex.name = updatedEx.name;
+                ex.target = updatedEx.target;
+                ex.weight = newWeight;
+                ex.rep = newRep;
+
+                saveToLocalStorage();
+                showToast("Esercizio aggiornato!");
+                renderApp();
+            });
+        }
+
 
         // =========================================================================
-        // VIEW 3: ARCHIVE / MENU ALL ROUTINES
+        // VIEW: ARCHIVIO (STORICO ROUTINE)
         // =========================================================================
         function renderArchiveView(container, headerActions) {
             headerActions.innerHTML = `
@@ -681,22 +1098,20 @@
                 </button>
             `;
 
-            // Sort routines based on state
             const sorted = [...appState.routines].sort((a,b) => {
                 const dateA = new Date(a.createdDate);
                 const dateB = new Date(b.createdDate);
                 return appState.archiveSortOrder === 'desc' ? dateB - dateA : dateA - dateB;
             });
 
-            let html = `
+            container.innerHTML = `
                 <div class="space-y-4">
-                    
                     <div class="flex items-center justify-between">
                         <div>
                             <h2 class="text-xl font-black text-white">Archivio Routine</h2>
-                            <p class="text-xs text-slate-400">Tutte le schede salvate nel dispositivo</p>
+                            <p class="text-xs text-slate-400">Tutti gli allenamenti registrati</p>
                         </div>
-                        <button onclick="toggleSortOrder()" class="p-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-xs font-bold text-brand-500 flex items-center space-x-1.5">
+                        <button onclick="toggleSortOrder()" class="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-bold text-brand-500 flex items-center space-x-1.5">
                             <i data-lucide="arrow-up-down" class="w-3.5 h-3.5"></i>
                             <span>${appState.archiveSortOrder === 'desc' ? 'Più recenti' : 'Meno recenti'}</span>
                         </button>
@@ -713,7 +1128,7 @@
                                         <div class="space-y-0.5">
                                             <h3 class="font-bold text-white text-base group-hover:text-brand-500 transition">${escapeHtml(routine.title)}</h3>
                                             <span class="text-xs text-slate-400 block">
-                                                Creata il ${new Date(routine.createdDate).toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' })}
+                                                Creato il ${new Date(routine.createdDate).toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' })}
                                             </span>
                                         </div>
                                         <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${isComplete ? 'bg-brand-500/10 text-brand-500 border border-brand-500/30' : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'}">
@@ -721,7 +1136,6 @@
                                         </span>
                                     </div>
 
-                                    <!-- Progress indicator -->
                                     <div class="space-y-1.5">
                                         <div class="flex justify-between text-[11px] font-semibold text-slate-400">
                                             <span>Avanzamento Giorni</span>
@@ -737,18 +1151,8 @@
                             `;
                         }).join('')}
                     </div>
-
-                    <div class="pt-4 text-center">
-                        <button onclick="createNewRoutine()" class="py-3 px-6 rounded-2xl bg-slate-900 border border-slate-800 hover:bg-slate-800 text-brand-500 font-bold text-xs inline-flex items-center space-x-2 transition">
-                            <i data-lucide="plus" class="w-4 h-4"></i>
-                            <span>Crea Nuova Routine</span>
-                        </button>
-                    </div>
-
                 </div>
             `;
-
-            container.innerHTML = html;
         }
 
         function toggleSortOrder() {
@@ -758,7 +1162,108 @@
 
 
         // =========================================================================
-        // WORD (.DOCX) EXPORT IMPLEMENTATION (docx.js)
+        // GENERIC EXERCISE EDITOR MODAL
+        // =========================================================================
+        function openExerciseEditorModal(existingExercise, onSaveCallback) {
+            const isEdit = !!existingExercise;
+            let currentSetCount = isEdit ? existingExercise.target.length : 3;
+            let currentTargets = isEdit ? [...existingExercise.target] : ["10", "10", "10"];
+            let nameVal = isEdit ? existingExercise.name : "";
+
+            const backdrop = document.getElementById('dynamic-modal-backdrop');
+            const content = document.getElementById('dynamic-modal-content');
+
+            function renderModal() {
+                // Ensure array matches count
+                while (currentTargets.length < currentSetCount) currentTargets.push("10");
+                while (currentTargets.length > currentSetCount) currentTargets.pop();
+
+                content.innerHTML = `
+                    <h3 class="text-lg font-bold text-white">${isEdit ? 'Modifica Esercizio' : 'Nuovo Esercizio'}</h3>
+                    
+                    <div class="space-y-3 text-xs">
+                        <div>
+                            <label class="text-slate-400 font-semibold block mb-1">Nome Esercizio</label>
+                            <input id="modal-ex-name" type="text" value="${escapeHtml(nameVal)}" placeholder="Es. Panca Piana" 
+                                class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl font-bold text-white focus:border-brand-500 focus:outline-none" />
+                        </div>
+
+                        <div class="flex items-center justify-between">
+                            <label class="text-slate-400 font-semibold">Numero di Serie (Colonne)</label>
+                            <div class="flex items-center space-x-2">
+                                <button id="btn-sets-dec" class="w-7 h-7 bg-slate-800 rounded-lg font-bold text-white hover:bg-slate-700">-</button>
+                                <span class="font-bold text-sm text-white w-5 text-center">${currentSetCount}</span>
+                                <button id="btn-sets-inc" class="w-7 h-7 bg-slate-800 rounded-lg font-bold text-white hover:bg-slate-700">+</button>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2">
+                            <label class="text-slate-400 font-semibold block">Obiettivo Rep per Serie</label>
+                            <div class="grid grid-cols-3 gap-2">
+                                ${currentTargets.map((t, idx) => `
+                                    <div>
+                                        <span class="text-[10px] text-slate-500 block mb-0.5">SET ${idx+1}</span>
+                                        <input type="text" value="${escapeHtml(t)}" data-idx="${idx}" class="modal-target-input w-full py-1 px-2 text-center bg-slate-950 border border-slate-800 rounded-lg text-amber-400 font-mono font-bold focus:border-brand-500 focus:outline-none" />
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center space-x-2 justify-end pt-3 border-t border-slate-800">
+                        <button id="modal-cancel-btn" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold">Annulla</button>
+                        <button id="modal-save-btn" class="px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-slate-950 text-xs font-bold">Salva</button>
+                    </div>
+                `;
+
+                // Attach Listeners
+                document.getElementById('modal-ex-name').oninput = (e) => { nameVal = e.target.value; };
+                
+                document.querySelectorAll('.modal-target-input').forEach(inp => {
+                    inp.oninput = (e) => {
+                        const idx = parseInt(e.target.dataset.idx);
+                        currentTargets[idx] = e.target.value;
+                    };
+                });
+
+                document.getElementById('btn-sets-dec').onclick = () => {
+                    if (currentSetCount > 1) {
+                        currentSetCount--;
+                        renderModal();
+                    }
+                };
+
+                document.getElementById('btn-sets-inc').onclick = () => {
+                    if (currentSetCount < 10) {
+                        currentSetCount++;
+                        renderModal();
+                    }
+                };
+
+                document.getElementById('modal-cancel-btn').onclick = () => {
+                    backdrop.classList.add('hidden');
+                };
+
+                document.getElementById('modal-save-btn').onclick = () => {
+                    if (!nameVal.trim()) {
+                        showToast("Inserisci il nome dell'esercizio!");
+                        return;
+                    }
+                    backdrop.classList.add('hidden');
+                    onSaveCallback({
+                        name: nameVal.trim(),
+                        target: [...currentTargets]
+                    });
+                };
+            }
+
+            renderModal();
+            backdrop.classList.remove('hidden');
+        }
+
+
+        // =========================================================================
+        // WORD (.DOCX) EXPORT IMPLEMENTATION
         // =========================================================================
         function downloadDocx(routineId) {
             const routine = appState.routines.find(r => r.id === routineId);
@@ -768,11 +1273,10 @@
 
             try {
                 const docxLib = window.docx;
-                const { Document, Packer, Paragraph, Table, TableRow, TableCell, WidthType, TextRun, HeadingLevel, AlignmentType, BorderStyle } = docxLib;
+                const { Document, Packer, Paragraph, Table, TableRow, TableCell, WidthType, TextRun, HeadingLevel, AlignmentType } = docxLib;
 
                 const docChildren = [];
 
-                // Routine Title Header
                 docChildren.push(
                     new Paragraph({
                         text: routine.title.toUpperCase(),
@@ -782,9 +1286,7 @@
                     })
                 );
 
-                // Loop through days
                 routine.days.forEach((day) => {
-                    // Day Title Header
                     docChildren.push(
                         new Paragraph({
                             text: day.name,
@@ -793,26 +1295,16 @@
                         })
                     );
 
-                    // Loop through exercises for this day
                     day.exercises.forEach((ex) => {
-                        // Exercise Name
                         docChildren.push(
                             new Paragraph({
                                 children: [
-                                    new TextRun({
-                                        text: ex.name,
-                                        bold: true,
-                                        size: 22
-                                    })
+                                    new TextRun({ text: ex.name, bold: true, size: 22 })
                                 ],
                                 spacing: { before: 100, after: 80 }
                             })
                         );
 
-                        // Table Generation
-                        const numCols = ex.target.length + 1; // 1 column for labels + set columns
-                        
-                        // Header Row (OBIETTIVO, SET 1, SET 2...)
                         const headerCells = [
                             new TableCell({
                                 children: [new Paragraph({ children: [new TextRun({ text: "OBIETTIVO", bold: true })] })],
@@ -828,31 +1320,21 @@
                             );
                         });
 
-                        // PESO Row
                         const pesoCells = [
-                            new TableCell({
-                                children: [new Paragraph({ children: [new TextRun({ text: "PESO", bold: true })] })]
-                            })
+                            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "PESO", bold: true })] })] })
                         ];
                         ex.weight.forEach((w) => {
                             pesoCells.push(
-                                new TableCell({
-                                    children: [new Paragraph({ children: [new TextRun({ text: w || "" })], alignment: AlignmentType.CENTER })]
-                                })
+                                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: w || "" })], alignment: AlignmentType.CENTER })] })
                             );
                         });
 
-                        // REP Row
                         const repCells = [
-                            new TableCell({
-                                children: [new Paragraph({ children: [new TextRun({ text: "REP", bold: true })] })]
-                            })
+                            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "REP", bold: true })] })] })
                         ];
                         ex.rep.forEach((r) => {
                             repCells.push(
-                                new TableCell({
-                                    children: [new Paragraph({ children: [new TextRun({ text: r || "" })], alignment: AlignmentType.CENTER })]
-                                })
+                                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: r || "" })], alignment: AlignmentType.CENTER })] })
                             );
                         });
 
@@ -866,15 +1348,24 @@
                         });
 
                         docChildren.push(table);
-                        docChildren.push(new Paragraph({ text: "", spacing: { after: 120 } }));
+
+                        if (ex.note && ex.note.trim()) {
+                            docChildren.push(
+                                new Paragraph({
+                                    children: [
+                                        new TextRun({ text: `Note: ${ex.note}`, italic: true, size: 18 })
+                                    ],
+                                    spacing: { before: 60, after: 100 }
+                                })
+                            );
+                        } else {
+                            docChildren.push(new Paragraph({ text: "", spacing: { after: 120 } }));
+                        }
                     });
                 });
 
                 const doc = new Document({
-                    sections: [{
-                        properties: {},
-                        children: docChildren
-                    }]
+                    sections: [{ properties: {}, children: docChildren }]
                 });
 
                 Packer.toBlob(doc).then((blob) => {
@@ -884,14 +1375,14 @@
                 });
 
             } catch (err) {
-                console.error("DOCX generation error:", err);
+                console.error("DOCX error:", err);
                 showToast("Errore nella creazione del file Word.");
             }
         }
 
 
         // =========================================================================
-        // UTILS: TOAST & MODAL HELPERS
+        // UTILS
         // =========================================================================
         function showToast(msg) {
             const toast = document.getElementById('toast');
