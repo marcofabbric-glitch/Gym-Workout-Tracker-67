@@ -253,10 +253,10 @@
             }
         }
 
-function initSupabase() {
-            // Credenziali fisse cablate: funzionerà subito per chiunque apra il link!
+        function initSupabase() {
+            // Credenziali hardcoded fisse: niente più richieste manuali su nessun dispositivo!
             const url = "https://cbaortznsaewspofazyr.supabase.co";
-            const key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNiYW9ydHpuc2Fld3Nwb2ZhenlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMyMjg1OTIsImV4cCI6MjEwODgwNDU5Mn0.ocXjIteI_YENslMRkVVChtG0rMiWUZVCC8ZD9aqrTeY"; // es. la tua stringa eyJhbGci... o sb_publishable_...
+            const key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNiYW9ydHpuc2Fld3Nwb2ZhenlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMyMjg1OTIsImV4cCI6MjEwODgwNDU5Mn0.ocXjIteI_YENslMRkVVChtG0rMiWUZVCC8ZD9aqrTeY"; 
 
             if (window.supabase) {
                 try {
@@ -544,14 +544,6 @@ function initSupabase() {
                         </h3>
 
                         <div class="space-y-2">
-                            <button onclick="openConfigModal()" class="w-full p-3 rounded-xl bg-slate-950 hover:bg-slate-800/80 border border-slate-800 text-left flex items-center justify-between text-xs transition">
-                                <div class="flex items-center space-x-2 text-slate-300">
-                                    <i data-lucide="database" class="w-4 h-4 text-brand-500"></i>
-                                    <span>Parametri Supabase (URL / Key)</span>
-                                </div>
-                                <i data-lucide="chevron-right" class="w-4 h-4 text-slate-500"></i>
-                            </button>
-
                             <button onclick="syncDataFromCloud()" class="w-full p-3 rounded-xl bg-slate-950 hover:bg-slate-800/80 border border-slate-800 text-left flex items-center justify-between text-xs transition">
                                 <div class="flex items-center space-x-2 text-slate-300">
                                     <i data-lucide="refresh-cw" class="w-4 h-4 text-emerald-400"></i>
@@ -586,7 +578,6 @@ function initSupabase() {
             if (!input.files || input.files.length === 0) return;
             const file = input.files[0];
 
-            // Ridimensiona immagine per rientrare nei limiti di memorizzazione
             const img = new Image();
             img.src = URL.createObjectURL(file);
             img.onload = () => {
@@ -632,11 +623,17 @@ function initSupabase() {
             if (supabaseClient) {
                 const { error } = await supabaseClient
                     .from('profiles')
-                    .upsert({ id: currentUser.id, email: currentUser.email, username: newUsername });
+                    .update({ username: newUsername })
+                    .eq('id', currentUser.id);
 
                 if (error) {
-                    showToast("Errore aggiornamento username cloud.");
-                    return;
+                    const { error: err2 } = await supabaseClient
+                        .from('profiles')
+                        .upsert({ id: currentUser.id, email: currentUser.email, username: newUsername });
+                    if (err2) {
+                        showToast("Errore aggiornamento username cloud.");
+                        return;
+                    }
                 }
             }
 
@@ -721,6 +718,8 @@ function initSupabase() {
             const activeRoutine = getActiveIncompleteRoutine();
             const isIncomplete = !!activeRoutine;
             const nextDayIdx = isIncomplete ? getNextIncompleteDayIndex(activeRoutine) : 0;
+            const avatarUrl = currentProfile?.avatar_url || (currentUser ? localStorage.getItem(`gt_avatar_${currentUser.id}`) : null);
+            const username = currentProfile?.username || currentUser?.email?.split('@')[0] || 'Atleta';
 
             container.innerHTML = `
                 <div class="space-y-5 animate-fade-in pb-12">
@@ -728,15 +727,15 @@ function initSupabase() {
                     ${currentUser ? `
                         <div class="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-between">
                             <div class="flex items-center space-x-2.5">
-                                <div class="w-8 h-8 rounded-full bg-brand-500/20 text-brand-500 flex items-center justify-center font-bold text-xs border border-brand-500/30">
-                                    ${(currentProfile?.username || 'U')[0].toUpperCase()}
+                                <div class="w-8 h-8 rounded-full overflow-hidden bg-brand-500/20 text-brand-500 flex items-center justify-center font-bold text-xs border border-brand-500/30">
+                                    ${avatarUrl ? `<img src="${escapeHtml(avatarUrl)}" class="w-full h-full object-cover" />` : username[0].toUpperCase()}
                                 </div>
                                 <div>
-                                    <h4 class="font-bold text-xs text-white">${escapeHtml(currentProfile?.username || currentUser.email)}</h4>
+                                    <h4 class="font-bold text-xs text-white">${escapeHtml(username)}</h4>
                                     <span class="text-[10px] text-brand-500 font-mono">Cloud Sync Attivo</span>
                                 </div>
                             </div>
-                            <button onclick="openConfigModal()" class="text-slate-500 hover:text-slate-300">
+                            <button onclick="navigateTo('profile')" class="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition">
                                 <i data-lucide="settings" class="w-4 h-4"></i>
                             </button>
                         </div>
@@ -1791,10 +1790,7 @@ function initSupabase() {
 
         async function handleAuthSubmit(e) {
             e.preventDefault();
-            if (!supabaseClient) {
-                openConfigModal();
-                return;
-            }
+            if (!supabaseClient) return;
 
             const email = document.getElementById('auth-email').value;
             const password = document.getElementById('auth-password').value;
@@ -1857,7 +1853,7 @@ function initSupabase() {
         async function sendPasswordResetEmail() {
             const email = document.getElementById('reset-email').value.trim();
             if (!email) return showToast("Inserisci un'email valida!");
-            if (!supabaseClient) return openConfigModal();
+            if (!supabaseClient) return;
 
             const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
                 redirectTo: window.location.href
@@ -1870,45 +1866,6 @@ function initSupabase() {
             } else {
                 showToast("Email di reset inviata! Controlla la tua casella.");
             }
-        }
-
-        function openConfigModal() {
-            const backdrop = document.getElementById('dynamic-modal-backdrop');
-            const content = document.getElementById('dynamic-modal-content');
-
-            content.innerHTML = `
-                <h3 class="text-lg font-bold text-white">Configurazione Supabase</h3>
-                <p class="text-xs text-slate-400">Inserisci URL e Anon Key del tuo database Supabase</p>
-
-                <div class="space-y-3 text-xs">
-                    <div>
-                        <label class="text-slate-400 font-semibold block mb-1">SUPABASE URL</label>
-                        <input id="cfg-url" type="text" value="${localStorage.getItem('gt_sb_url') || ''}" placeholder="https://xyz.supabase.co" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono" />
-                    </div>
-                    <div>
-                        <label class="text-slate-400 font-semibold block mb-1">SUPABASE ANON KEY</label>
-                        <input id="cfg-key" type="password" value="${localStorage.getItem('gt_sb_key') || ''}" placeholder="eyJhbGci..." class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono" />
-                    </div>
-                </div>
-
-                <div class="flex items-center space-x-2 justify-end pt-3 border-t border-slate-800">
-                    <button onclick="document.getElementById('dynamic-modal-backdrop').classList.add('hidden')" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold">Chiudi</button>
-                    <button onclick="saveSupabaseConfig()" class="px-4 py-2 rounded-xl bg-brand-500 text-slate-950 text-xs font-bold">Salva</button>
-                </div>
-            `;
-            backdrop.classList.remove('hidden');
-        }
-
-        function saveSupabaseConfig() {
-            const url = document.getElementById('cfg-url').value.trim();
-            const key = document.getElementById('cfg-key').value.trim();
-
-            localStorage.setItem('gt_sb_url', url);
-            localStorage.setItem('gt_sb_key', key);
-
-            document.getElementById('dynamic-modal-backdrop').classList.add('hidden');
-            initSupabase();
-            showToast("Configurazione salvata!");
         }
 
         function openExerciseEditorModal(existingExercise, onSaveCallback) {
