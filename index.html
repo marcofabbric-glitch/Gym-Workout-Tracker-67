@@ -331,7 +331,6 @@ async function ensureUserProfileExists() {
                     .insert([
                         { 
                             id: currentUser.id, 
-                            email: currentUser.email, 
                             username: defaultUsername,
                             avatar_url: localStorage.getItem(`gt_avatar_${currentUser.id}`) || null
                         }
@@ -641,17 +640,14 @@ async function uploadAvatarImage(input) {
                 const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
 
                 if (currentUser) {
-                    // 1. Salva subito in locale sul dispositivo corrente
                     localStorage.setItem(`gt_avatar_${currentUser.id}`, compressedBase64);
                     if (currentProfile) currentProfile.avatar_url = compressedBase64;
                     
-                    // 2. Salva nel database cloud di Supabase
                     if (supabaseClient) {
                         const { error } = await supabaseClient
                             .from('profiles')
                             .upsert({ 
                                 id: currentUser.id, 
-                                email: currentUser.email, 
                                 username: currentProfile?.username || currentUser.email.split('@')[0],
                                 avatar_url: compressedBase64 
                             });
