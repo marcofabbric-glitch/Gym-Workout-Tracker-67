@@ -584,7 +584,7 @@ async function syncDataFromCloud() {
             `;
         }
 
-        async function uploadAvatarImage(input) {
+   async function uploadAvatarImage(input) {
             if (!input.files || input.files.length === 0) return;
             const file = input.files[0];
 
@@ -603,19 +603,26 @@ async function syncDataFromCloud() {
                 const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
 
                 if (currentUser) {
+                    // Salviamo in locale sul dispositivo
                     localStorage.setItem(`gt_avatar_${currentUser.id}`, compressedBase64);
                     if (currentProfile) currentProfile.avatar_url = compressedBase64;
                     
+                    // Salviamo nel cloud di Supabase nella tabella profiles
                     if (supabaseClient) {
                         supabaseClient
                             .from('profiles')
-                            .update({ avatar_url: compressedBase64 })
-                            .eq('id', currentUser.id)
+                            .upsert({ 
+                                id: currentUser.id, 
+                                email: currentUser.email, 
+                                username: currentProfile?.username || currentUser.email.split('@')[0],
+                                avatar_url: compressedBase64 
+                            })
                             .then(({ error }) => {
                                 if (error) console.warn("Errore sync avatar cloud:", error);
+                                else console.log("Avatar sincronizzato nel cloud con successo!");
                             });
                     }
-                    showToast("Foto profilo aggiornata!");
+                    showToast("Foto profilo aggiornata e sincronizzata!");
                     renderApp();
                 }
             };
