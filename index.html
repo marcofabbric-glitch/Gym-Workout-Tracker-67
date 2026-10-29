@@ -273,14 +273,14 @@ async function checkSupabaseSession() {
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (session) {
                 currentUser = session.user;
-                await ensureUserProfileExists(); // <-- INCOLLALO QUI
+                await ensureUserProfileExists();
                 await syncDataFromCloud();
             }
 
             supabaseClient.auth.onAuthStateChange(async (event, session) => {
                 if (session) {
                     currentUser = session.user;
-                    await ensureUserProfileExists(); // <-- E INCOLLALO ANCHE QUI
+                    await ensureUserProfileExists();
                     await syncDataFromCloud();
                 } else {
                     currentUser = null;
@@ -300,7 +300,6 @@ async function fetchUserProfile() {
 
             if (data) {
                 currentProfile = data;
-                // Se il cloud ha un avatar salvato, lo salviamo in locale così l'app lo mostra subito!
                 if (data.avatar_url) {
                     localStorage.setItem(`gt_avatar_${currentUser.id}`, data.avatar_url);
                 }
@@ -361,7 +360,6 @@ async function syncDataFromCloud() {
                 appState.schede = cloudSchede.map(s => typeof s.content === 'string' ? JSON.parse(s.content) : s.content);
                 saveToLocalStorage();
             } else if (appState.schede.length > 0) {
-                // Se il cloud è vuoto ma il dispositivo ha schede, le carichiamo sul cloud!
                 await syncSchedeToCloud();
             }
 
@@ -375,7 +373,6 @@ async function syncDataFromCloud() {
                 appState.routines = cloudRoutines.map(r => typeof r.content === 'string' ? JSON.parse(r.content) : r.content);
                 saveToLocalStorage();
             } else if (appState.routines.length > 0) {
-                // Se il cloud è vuoto ma il dispositivo ha routine, le carichiamo sul cloud!
                 await syncRoutinesToCloud();
             }
 
@@ -412,8 +409,18 @@ async function syncDataFromCloud() {
             }
         }
 
-        function isDayComplete(day) {
-            return day.exercises.every(ex => {
+        function isExerciseComplete(ex) {
+            if (ex.isSuperset && ex.subExercises) {
+                return ex.subExercises.every(sub => {
+                    for (let i = 0; i < ex.target.length; i++) {
+                        if (!sub.weight[i] || sub.weight[i].toString().trim() === "" ||
+                            !sub.rep[i] || sub.rep[i].toString().trim() === "") {
+                            return false;
+                        }
+                    }
+                    return true;
+                });
+            } else {
                 for (let i = 0; i < ex.target.length; i++) {
                     if (!ex.weight[i] || ex.weight[i].toString().trim() === "" ||
                         !ex.rep[i] || ex.rep[i].toString().trim() === "") {
@@ -421,7 +428,11 @@ async function syncDataFromCloud() {
                     }
                 }
                 return true;
-            });
+            }
+        }
+
+        function isDayComplete(day) {
+            return day.exercises.every(ex => isExerciseComplete(ex));
         }
 
         function isRoutineComplete(routine) {
@@ -673,7 +684,6 @@ async function updateProfileUsername() {
             if (!currentUser) return;
 
             if (supabaseClient) {
-                // Proviamo l'update mirato per l'ID utente loggato
                 const { data, error } = await supabaseClient
                     .from('profiles')
                     .update({ username: newUsername })
@@ -689,7 +699,6 @@ async function updateProfileUsername() {
                 if (data && data.length > 0) {
                     currentProfile = data[0];
                 } else {
-                    // Se non ha aggiornato righe, forziamo l'inserimento
                     const { data: dataIns, error: errIns } = await supabaseClient
                         .from('profiles')
                         .upsert({ id: currentUser.id, email: currentUser.email, username: newUsername })
@@ -704,7 +713,6 @@ async function updateProfileUsername() {
                 }
             }
 
-            // Forza l'aggiornamento locale dell'input e dello stato
             if (currentProfile) currentProfile.username = newUsername;
             
             showToast("Username aggiornato con successo!");
@@ -901,12 +909,25 @@ async function updateProfileUsername() {
 
             routine.days.forEach(d => {
                 d.exercises.forEach(ex => {
-                    for (let i = 0; i < ex.target.length; i++) {
-                        if (!ex.weight[i] || ex.weight[i].toString().trim() === "") {
-                            ex.weight[i] = "N/A";
-                        }
-                        if (!ex.rep[i] || ex.rep[i].toString().trim() === "") {
-                            ex.rep[i] = "N/A";
+                    if (ex.isSuperset && ex.subExercises) {
+                        ex.subExercises.forEach(sub => {
+                            for (let i = 0; i < ex.target.length; i++) {
+                                if (!sub.weight[i] || sub.weight[i].toString().trim() === "") {
+                                    sub.weight[i] = "N/A";
+                                }
+                                if (!sub.rep[i] || sub.rep[i].toString().trim() === "") {
+                                    sub.rep[i] = "N/A";
+                                }
+                            }
+                        });
+                    } else {
+                        for (let i = 0; i < ex.target.length; i++) {
+                            if (!ex.weight[i] || ex.weight[i].toString().trim() === "") {
+                                ex.weight[i] = "N/A";
+                            }
+                            if (!ex.rep[i] || ex.rep[i].toString().trim() === "") {
+                                ex.rep[i] = "N/A";
+                            }
                         }
                     }
                 });
@@ -968,13 +989,30 @@ async function updateProfileUsername() {
                 schedaId: scheda.id,
                 days: scheda.days.map(day => ({
                     name: day.name,
-                    exercises: day.exercises.map(ex => ({
-                        name: ex.name,
-                        target: [...ex.target],
-                        weight: new Array(ex.target.length).fill(""),
-                        rep: new Array(ex.target.length).fill(""),
-                        note: ""
-                    }))
+                    exercises: day.exercises.map(ex => {
+                        if (ex.isSuperset) {
+                            return {
+                                name: ex.name,
+                                isSuperset: true,
+                                target: [...ex.target],
+                                subExercises: (ex.subExercises || []).map(sub => ({
+                                    name: sub.name,
+                                    weight: new Array(ex.target.length).fill(""),
+                                    rep: new Array(ex.target.length).fill("")
+                                })),
+                                note: ""
+                            };
+                        } else {
+                            return {
+                                name: ex.name,
+                                isSuperset: false,
+                                target: [...ex.target],
+                                weight: new Array(ex.target.length).fill(""),
+                                rep: new Array(ex.target.length).fill(""),
+                                note: ""
+                            };
+                        }
+                    })
                 }))
             };
 
@@ -1135,8 +1173,16 @@ async function updateProfileUsername() {
                             <div onclick="${appState.deleteExerciseMode ? `confirmRemoveBuilderExercise(${exIdx})` : `openEditBuilderExerciseModal(${exIdx})`}"
                                 class="p-3.5 rounded-2xl bg-slate-900 border ${appState.deleteExerciseMode ? 'border-red-500/50 hover:bg-red-950/20' : 'border-slate-800 hover:border-slate-700'} transition cursor-pointer flex items-center justify-between">
                                 <div>
-                                    <h4 class="font-bold text-sm text-white">${escapeHtml(ex.name)}</h4>
-                                    <p class="text-xs text-slate-400 font-mono mt-0.5">${ex.target.length} Serie [${ex.target.join(' - ')}]</p>
+                                    <div class="flex items-center space-x-2">
+                                        <h4 class="font-bold text-sm text-white">${escapeHtml(ex.isSuperset ? (ex.name || 'SUPERSERIE') : ex.name)}</h4>
+                                        ${ex.isSuperset ? '<span class="px-2 py-0.5 rounded bg-brand-500/10 border border-brand-500/30 text-brand-500 text-[10px] font-bold">SUPERSET</span>' : ''}
+                                    </div>
+                                    ${ex.isSuperset ? `
+                                        <p class="text-xs text-slate-400 font-mono mt-0.5">${ex.subExercises ? ex.subExercises.map(s => escapeHtml(s.name)).join(' + ') : ''}</p>
+                                        <p class="text-[11px] text-amber-400 font-mono">${ex.target.length} Serie [${ex.target.join(' - ')}]</p>
+                                    ` : `
+                                        <p class="text-xs text-slate-400 font-mono mt-0.5">${ex.target.length} Serie [${ex.target.join(' - ')}]</p>
+                                    `}
                                 </div>
                                 <i data-lucide="${appState.deleteExerciseMode ? 'minus-circle' : 'edit-2'}" class="w-4 h-4 ${appState.deleteExerciseMode ? 'text-red-400' : 'text-slate-500'}"></i>
                             </div>
@@ -1319,9 +1365,12 @@ async function updateProfileUsername() {
                         </div>
 
                         ${currentDay.exercises.map((ex, exIdx) => `
-                            <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 shadow-md space-y-3">
+                            <div class="p-4 rounded-2xl bg-slate-900 border ${ex.isSuperset ? 'border-brand-500/40' : 'border-slate-800'} shadow-md space-y-3">
                                 <div class="flex items-center justify-between">
-                                    <h4 class="font-bold text-sm text-slate-100 tracking-wide">${escapeHtml(ex.name)}</h4>
+                                    <div class="flex items-center space-x-2">
+                                        <h4 class="font-bold text-sm text-slate-100 tracking-wide">${escapeHtml(ex.isSuperset ? (ex.name || 'SUPERSERIE') : ex.name)}</h4>
+                                        ${ex.isSuperset ? '<span class="px-2 py-0.5 rounded bg-brand-500/20 text-brand-500 font-extrabold text-[10px]">SUPERSET</span>' : ''}
+                                    </div>
                                     <button onclick="openEditActiveExerciseModal('${routine.id}', ${appState.currentDayIndex}, ${exIdx})" 
                                         class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-brand-500 transition text-xs flex items-center space-x-1">
                                         <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
@@ -1329,44 +1378,95 @@ async function updateProfileUsername() {
                                     </button>
                                 </div>
 
-                                <div class="overflow-x-auto">
-                                    <table class="w-full text-center border-collapse">
-                                        <thead>
-                                            <tr class="text-[11px] text-slate-400 border-b border-slate-800 uppercase font-semibold">
-                                                <th class="pb-1.5 text-left w-20">CAMPO</th>
-                                                ${ex.target.map((_, sIdx) => `<th class="pb-1.5">SET ${sIdx + 1}</th>`).join('')}
-                                            </tr>
-                                        </thead>
-                                        <tbody class="divide-y divide-slate-800/50 text-xs">
-                                            <tr>
-                                                <td class="py-2 font-semibold text-slate-400 text-left">Obiettivo</td>
-                                                ${ex.target.map(t => `
-                                                    <td class="py-2 font-mono font-bold text-amber-400 bg-slate-950/40">${t}</td>
-                                                `).join('')}
-                                            </tr>
-                                            <tr>
-                                                <td class="py-2 font-semibold text-slate-300 text-left">Peso (kg)</td>
-                                                ${ex.weight.map((w, sIdx) => `
-                                                    <td class="py-1 px-1">
-                                                        <input type="text" value="${escapeHtml(w)}" placeholder="--"
-                                                            onchange="updateExerciseData('${routine.id}', ${appState.currentDayIndex}, ${exIdx}, 'weight', ${sIdx}, this.value)"
-                                                            class="w-full py-1.5 text-center font-bold text-white bg-slate-950 border border-slate-800 rounded-lg focus:border-brand-500 focus:bg-slate-900 focus:outline-none transition" />
-                                                    </td>
-                                                `).join('')}
-                                            </tr>
-                                            <tr>
-                                                <td class="py-2 font-semibold text-slate-300 text-left">Rep svolte</td>
-                                                ${ex.rep.map((r, sIdx) => `
-                                                    <td class="py-1 px-1">
-                                                        <input type="text" value="${escapeHtml(r)}" placeholder="--"
-                                                            onchange="updateExerciseData('${routine.id}', ${appState.currentDayIndex}, ${exIdx}, 'rep', ${sIdx}, this.value)"
-                                                            class="w-full py-1.5 text-center font-bold text-white bg-slate-950 border border-slate-800 rounded-lg focus:border-brand-500 focus:bg-slate-900 focus:outline-none transition" />
-                                                    </td>
-                                                `).join('')}
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                </div>
+                                ${ex.isSuperset && ex.subExercises ? `
+                                    <div class="space-y-4">
+                                        ${ex.subExercises.map((sub, subIdx) => `
+                                            <div class="p-3 bg-slate-950/60 rounded-xl border border-slate-800 space-y-2">
+                                                <h5 class="font-bold text-xs text-brand-500 tracking-wide uppercase flex items-center gap-1.5">
+                                                    <span class="w-1.5 h-1.5 rounded-full bg-brand-500"></span>
+                                                    <span>${escapeHtml(sub.name)}</span>
+                                                </h5>
+                                                <div class="overflow-x-auto">
+                                                    <table class="w-full text-center border-collapse">
+                                                        <thead>
+                                                            <tr class="text-[11px] text-slate-400 border-b border-slate-800 uppercase font-semibold">
+                                                                <th class="pb-1.5 text-left w-20">CAMPO</th>
+                                                                ${ex.target.map((_, sIdx) => `<th class="pb-1.5">SET ${sIdx + 1}</th>`).join('')}
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody class="divide-y divide-slate-800/50 text-xs">
+                                                            <tr>
+                                                                <td class="py-2 font-semibold text-slate-400 text-left">Obiettivo</td>
+                                                                ${ex.target.map(t => `
+                                                                    <td class="py-2 font-mono font-bold text-amber-400 bg-slate-950/40">${t}</td>
+                                                                `).join('')}
+                                                            </tr>
+                                                            <tr>
+                                                                <td class="py-2 font-semibold text-slate-300 text-left">Peso (kg)</td>
+                                                                ${sub.weight.map((w, sIdx) => `
+                                                                    <td class="py-1 px-1">
+                                                                        <input type="text" value="${escapeHtml(w)}" placeholder="--"
+                                                                            onchange="updateExerciseData('${routine.id}', ${appState.currentDayIndex}, ${exIdx}, 'weight', ${sIdx}, this.value, ${subIdx})"
+                                                                            class="w-full py-1.5 text-center font-bold text-white bg-slate-950 border border-slate-800 rounded-lg focus:border-brand-500 focus:bg-slate-900 focus:outline-none transition" />
+                                                                    </td>
+                                                                `).join('')}
+                                                            </tr>
+                                                            <tr>
+                                                                <td class="py-2 font-semibold text-slate-300 text-left">Rep svolte</td>
+                                                                ${sub.rep.map((r, sIdx) => `
+                                                                    <td class="py-1 px-1">
+                                                                        <input type="text" value="${escapeHtml(r)}" placeholder="--"
+                                                                            onchange="updateExerciseData('${routine.id}', ${appState.currentDayIndex}, ${exIdx}, 'rep', ${sIdx}, this.value, ${subIdx})"
+                                                                            class="w-full py-1.5 text-center font-bold text-white bg-slate-950 border border-slate-800 rounded-lg focus:border-brand-500 focus:bg-slate-900 focus:outline-none transition" />
+                                                                    </td>
+                                                                `).join('')}
+                                                            </tr>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                ` : `
+                                    <div class="overflow-x-auto">
+                                        <table class="w-full text-center border-collapse">
+                                            <thead>
+                                                <tr class="text-[11px] text-slate-400 border-b border-slate-800 uppercase font-semibold">
+                                                    <th class="pb-1.5 text-left w-20">CAMPO</th>
+                                                    ${ex.target.map((_, sIdx) => `<th class="pb-1.5">SET ${sIdx + 1}</th>`).join('')}
+                                                </tr>
+                                            </thead>
+                                            <tbody class="divide-y divide-slate-800/50 text-xs">
+                                                <tr>
+                                                    <td class="py-2 font-semibold text-slate-400 text-left">Obiettivo</td>
+                                                    ${ex.target.map(t => `
+                                                        <td class="py-2 font-mono font-bold text-amber-400 bg-slate-950/40">${t}</td>
+                                                    `).join('')}
+                                                </tr>
+                                                <tr>
+                                                    <td class="py-2 font-semibold text-slate-300 text-left">Peso (kg)</td>
+                                                    ${ex.weight.map((w, sIdx) => `
+                                                        <td class="py-1 px-1">
+                                                            <input type="text" value="${escapeHtml(w)}" placeholder="--"
+                                                                onchange="updateExerciseData('${routine.id}', ${appState.currentDayIndex}, ${exIdx}, 'weight', ${sIdx}, this.value)"
+                                                                class="w-full py-1.5 text-center font-bold text-white bg-slate-950 border border-slate-800 rounded-lg focus:border-brand-500 focus:bg-slate-900 focus:outline-none transition" />
+                                                        </td>
+                                                    `).join('')}
+                                                </tr>
+                                                <tr>
+                                                    <td class="py-2 font-semibold text-slate-300 text-left">Rep svolte</td>
+                                                    ${ex.rep.map((r, sIdx) => `
+                                                        <td class="py-1 px-1">
+                                                            <input type="text" value="${escapeHtml(r)}" placeholder="--"
+                                                                onchange="updateExerciseData('${routine.id}', ${appState.currentDayIndex}, ${exIdx}, 'rep', ${sIdx}, this.value)"
+                                                                class="w-full py-1.5 text-center font-bold text-white bg-slate-950 border border-slate-800 rounded-lg focus:border-brand-500 focus:bg-slate-900 focus:outline-none transition" />
+                                                        </td>
+                                                    `).join('')}
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                `}
 
                                 <div class="pt-1">
                                     <textarea placeholder="Aggiungi note sull'esercizio (es. sensazioni, sedile...)"
@@ -1445,10 +1545,15 @@ async function updateProfileUsername() {
             }
         }
 
-        function updateExerciseData(routineId, dayIdx, exIdx, field, setIdx, value) {
+        function updateExerciseData(routineId, dayIdx, exIdx, field, setIdx, value, subIdx = null) {
             const routine = appState.routines.find(r => r.id === routineId);
             if (routine) {
-                routine.days[dayIdx].exercises[exIdx][field][setIdx] = value;
+                const ex = routine.days[dayIdx].exercises[exIdx];
+                if (ex.isSuperset && subIdx !== null && ex.subExercises && ex.subExercises[subIdx]) {
+                    ex.subExercises[subIdx][field][setIdx] = value;
+                } else {
+                    ex[field][setIdx] = value;
+                }
                 saveToLocalStorage();
                 syncRoutinesToCloud();
             }
@@ -1482,17 +1587,39 @@ async function updateProfileUsername() {
             const ex = routine.days[dayIdx].exercises[exIdx];
             openExerciseEditorModal(ex, (updatedEx) => {
                 const newLength = updatedEx.target.length;
-                const newWeight = [];
-                const newRep = [];
-                for (let i = 0; i < newLength; i++) {
-                    newWeight.push(ex.weight[i] !== undefined ? ex.weight[i] : "");
-                    newRep.push(ex.rep[i] !== undefined ? ex.rep[i] : "");
-                }
-
+                
                 ex.name = updatedEx.name;
+                ex.isSuperset = updatedEx.isSuperset;
                 ex.target = updatedEx.target;
-                ex.weight = newWeight;
-                ex.rep = newRep;
+
+                if (updatedEx.isSuperset) {
+                    ex.subExercises = updatedEx.subExercises.map((sub, sIdx) => {
+                        const existingSub = (ex.subExercises && ex.subExercises[sIdx]) ? ex.subExercises[sIdx] : null;
+                        const newWeight = [];
+                        const newRep = [];
+                        for (let i = 0; i < newLength; i++) {
+                            newWeight.push(existingSub && existingSub.weight[i] !== undefined ? existingSub.weight[i] : "");
+                            newRep.push(existingSub && existingSub.rep[i] !== undefined ? existingSub.rep[i] : "");
+                        }
+                        return {
+                            name: sub.name,
+                            weight: newWeight,
+                            rep: newRep
+                        };
+                    });
+                    delete ex.weight;
+                    delete ex.rep;
+                } else {
+                    const newWeight = [];
+                    const newRep = [];
+                    for (let i = 0; i < newLength; i++) {
+                        newWeight.push(ex.weight && ex.weight[i] !== undefined ? ex.weight[i] : "");
+                        newRep.push(ex.rep && ex.rep[i] !== undefined ? ex.rep[i] : "");
+                    }
+                    ex.weight = newWeight;
+                    ex.rep = newRep;
+                    delete ex.subExercises;
+                }
 
                 saveToLocalStorage();
                 syncRoutinesToCloud();
@@ -1940,9 +2067,17 @@ async function updateProfileUsername() {
 
         function openExerciseEditorModal(existingExercise, onSaveCallback) {
             const isEdit = !!existingExercise;
+            let isSuperset = isEdit ? !!existingExercise.isSuperset : false;
             let currentSetCount = isEdit ? existingExercise.target.length : 3;
             let currentTargets = isEdit ? [...existingExercise.target] : ["10", "10", "10"];
-            let nameVal = isEdit ? existingExercise.name : "";
+            let nameVal = isEdit ? (existingExercise.name || "") : "";
+            
+            let subExercises = [];
+            if (isEdit && existingExercise.isSuperset && existingExercise.subExercises) {
+                subExercises = existingExercise.subExercises.map(sub => ({ name: sub.name || "" }));
+            } else {
+                subExercises = [{ name: "" }, { name: "" }];
+            }
 
             const backdrop = document.getElementById('dynamic-modal-backdrop');
             const content = document.getElementById('dynamic-modal-content');
@@ -1955,13 +2090,48 @@ async function updateProfileUsername() {
                     <h3 class="text-lg font-bold text-white">${isEdit ? 'Modifica Esercizio' : 'Nuovo Esercizio'}</h3>
                     
                     <div class="space-y-3 text-xs">
-                        <div>
-                            <label class="text-slate-400 font-semibold block mb-1">Nome Esercizio</label>
-                            <input id="modal-ex-name" type="text" value="${escapeHtml(nameVal)}" placeholder="Es. Panca Piana" 
-                                class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl font-bold text-white focus:border-brand-500 focus:outline-none" />
+                        <!-- Toggle Superserie -->
+                        <div class="flex items-center justify-between bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                            <div>
+                                <span class="text-xs font-bold text-white block">Esercizio in Superserie</span>
+                                <span class="text-[10px] text-slate-400 block">Combina due o più esercizi</span>
+                            </div>
+                            <input type="checkbox" id="modal-superset-toggle" ${isSuperset ? 'checked' : ''} class="w-4 h-4 accent-brand-500 rounded cursor-pointer" />
                         </div>
 
-                        <div class="flex items-center justify-between">
+                        ${isSuperset ? `
+                            <div>
+                                <label class="text-slate-400 font-semibold block mb-1">Nome della Superserie (Opzionale)</label>
+                                <input id="modal-ex-name" type="text" value="${escapeHtml(nameVal)}" placeholder="Es. Superserie Petto / Dorso" 
+                                    class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl font-bold text-white focus:border-brand-500 focus:outline-none" />
+                            </div>
+
+                            <div class="space-y-2 pt-1">
+                                <div class="flex items-center justify-between">
+                                    <label class="text-slate-400 font-semibold">Esercizi in Superserie (${subExercises.length})</label>
+                                    <div class="flex items-center space-x-1">
+                                        <button id="btn-sub-dec" class="w-6 h-6 bg-slate-800 rounded-md font-bold text-white hover:bg-slate-700">-</button>
+                                        <span class="font-bold text-xs text-white w-4 text-center">${subExercises.length}</span>
+                                        <button id="btn-sub-inc" class="w-6 h-6 bg-slate-800 rounded-md font-bold text-white hover:bg-slate-700">+</button>
+                                    </div>
+                                </div>
+                                ${subExercises.map((sub, idx) => `
+                                    <div class="flex items-center space-x-2">
+                                        <span class="text-[10px] font-bold text-brand-500 w-4">${idx+1}.</span>
+                                        <input type="text" value="${escapeHtml(sub.name)}" data-subidx="${idx}" placeholder="Es. Esercizio ${idx+1}"
+                                            class="modal-subex-input flex-1 px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-xl font-bold text-white focus:border-brand-500 focus:outline-none" />
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : `
+                            <div>
+                                <label class="text-slate-400 font-semibold block mb-1">Nome Esercizio</label>
+                                <input id="modal-ex-name" type="text" value="${escapeHtml(nameVal)}" placeholder="Es. Panca Piana" 
+                                    class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl font-bold text-white focus:border-brand-500 focus:outline-none" />
+                            </div>
+                        `}
+
+                        <div class="flex items-center justify-between pt-1">
                             <label class="text-slate-400 font-semibold">Numero di Serie (Colonne)</label>
                             <div class="flex items-center space-x-2">
                                 <button id="btn-sets-dec" class="w-7 h-7 bg-slate-800 rounded-lg font-bold text-white hover:bg-slate-700">-</button>
@@ -1989,8 +2159,41 @@ async function updateProfileUsername() {
                     </div>
                 `;
 
-                document.getElementById('modal-ex-name').oninput = (e) => { nameVal = e.target.value; };
-                
+                const nameInput = document.getElementById('modal-ex-name');
+                if (nameInput) nameInput.oninput = (e) => { nameVal = e.target.value; };
+
+                document.getElementById('modal-superset-toggle').onchange = (e) => {
+                    isSuperset = e.target.checked;
+                    renderModal();
+                };
+
+                document.querySelectorAll('.modal-subex-input').forEach(inp => {
+                    inp.oninput = (e) => {
+                        const idx = parseInt(e.target.dataset.subidx);
+                        subExercises[idx].name = e.target.value;
+                    };
+                });
+
+                const btnSubDec = document.getElementById('btn-sub-dec');
+                if (btnSubDec) {
+                    btnSubDec.onclick = () => {
+                        if (subExercises.length > 2) {
+                            subExercises.pop();
+                            renderModal();
+                        }
+                    };
+                }
+
+                const btnSubInc = document.getElementById('btn-sub-inc');
+                if (btnSubInc) {
+                    btnSubInc.onclick = () => {
+                        if (subExercises.length < 6) {
+                            subExercises.push({ name: "" });
+                            renderModal();
+                        }
+                    };
+                }
+
                 document.querySelectorAll('.modal-target-input').forEach(inp => {
                     inp.oninput = (e) => {
                         const idx = parseInt(e.target.dataset.idx);
@@ -2017,15 +2220,31 @@ async function updateProfileUsername() {
                 };
 
                 document.getElementById('modal-save-btn').onclick = () => {
-                    if (!nameVal.trim()) {
-                        showToast("Inserisci il nome dell'esercizio!");
-                        return;
+                    if (isSuperset) {
+                        const invalidSub = subExercises.some(s => !s.name.trim());
+                        if (invalidSub) {
+                            showToast("Inserisci il nome per tutti gli esercizi della superserie!");
+                            return;
+                        }
+                        backdrop.classList.add('hidden');
+                        onSaveCallback({
+                            name: nameVal.trim() || `Superserie (${subExercises.map(s => s.name.trim()).join(' + ')})`,
+                            isSuperset: true,
+                            subExercises: subExercises.map(s => ({ name: s.name.trim() })),
+                            target: [...currentTargets]
+                        });
+                    } else {
+                        if (!nameVal.trim()) {
+                            showToast("Inserisci il nome dell'esercizio!");
+                            return;
+                        }
+                        backdrop.classList.add('hidden');
+                        onSaveCallback({
+                            name: nameVal.trim(),
+                            isSuperset: false,
+                            target: [...currentTargets]
+                        });
                     }
-                    backdrop.classList.add('hidden');
-                    onSaveCallback({
-                        name: nameVal.trim(),
-                        target: [...currentTargets]
-                    });
                 };
             }
 
@@ -2067,55 +2286,112 @@ async function updateProfileUsername() {
                         docChildren.push(
                             new Paragraph({
                                 children: [
-                                    new TextRun({ text: ex.name, bold: true, size: 22 })
+                                    new TextRun({ text: ex.isSuperset ? (ex.name || "SUPERSERIE").toUpperCase() : ex.name, bold: true, size: 22 })
                                 ],
                                 spacing: { before: 100, after: 80 }
                             })
                         );
 
-                        const headerCells = [
-                            new TableCell({
-                                children: [new Paragraph({ children: [new TextRun({ text: "OBIETTIVO", bold: true })] })],
-                                width: { size: 25, type: WidthType.PERCENTAGE }
-                            })
-                        ];
-                        ex.target.forEach((t) => {
-                            headerCells.push(
+                        if (ex.isSuperset && ex.subExercises) {
+                            ex.subExercises.forEach((sub) => {
+                                docChildren.push(
+                                    new Paragraph({
+                                        children: [
+                                            new TextRun({ text: `• ${sub.name}`, bold: true, size: 20 })
+                                        ],
+                                        spacing: { before: 60, after: 60 }
+                                    })
+                                );
+
+                                const headerCells = [
+                                    new TableCell({
+                                        children: [new Paragraph({ children: [new TextRun({ text: "OBIETTIVO", bold: true })] })],
+                                        width: { size: 25, type: WidthType.PERCENTAGE }
+                                    })
+                                ];
+                                ex.target.forEach((t) => {
+                                    headerCells.push(
+                                        new TableCell({
+                                            children: [new Paragraph({ children: [new TextRun({ text: t, bold: true })], alignment: AlignmentType.CENTER })],
+                                            width: { size: 75 / ex.target.length, type: WidthType.PERCENTAGE }
+                                        })
+                                    );
+                                });
+
+                                const pesoCells = [
+                                    new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "PESO", bold: true })] })] })
+                                ];
+                                sub.weight.forEach((w) => {
+                                    pesoCells.push(
+                                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: w || "" })], alignment: AlignmentType.CENTER })] })
+                                    );
+                                });
+
+                                const repCells = [
+                                    new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "REP", bold: true })] })] })
+                                ];
+                                sub.rep.forEach((r) => {
+                                    repCells.push(
+                                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: r || "" })], alignment: AlignmentType.CENTER })] })
+                                    );
+                                });
+
+                                const table = new Table({
+                                    rows: [
+                                        new TableRow({ children: headerCells }),
+                                        new TableRow({ children: pesoCells }),
+                                        new TableRow({ children: repCells })
+                                    ],
+                                    width: { size: 100, type: WidthType.PERCENTAGE }
+                                });
+
+                                docChildren.push(table);
+                            });
+                        } else {
+                            const headerCells = [
                                 new TableCell({
-                                    children: [new Paragraph({ children: [new TextRun({ text: t, bold: true })], alignment: AlignmentType.CENTER })],
-                                    width: { size: 75 / ex.target.length, type: WidthType.PERCENTAGE }
+                                    children: [new Paragraph({ children: [new TextRun({ text: "OBIETTIVO", bold: true })] })],
+                                    width: { size: 25, type: WidthType.PERCENTAGE }
                                 })
-                            );
-                        });
+                            ];
+                            ex.target.forEach((t) => {
+                                headerCells.push(
+                                    new TableCell({
+                                        children: [new Paragraph({ children: [new TextRun({ text: t, bold: true })], alignment: AlignmentType.CENTER })],
+                                        width: { size: 75 / ex.target.length, type: WidthType.PERCENTAGE }
+                                    })
+                                );
+                            });
 
-                        const pesoCells = [
-                            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "PESO", bold: true })] })] })
-                        ];
-                        ex.weight.forEach((w) => {
-                            pesoCells.push(
-                                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: w || "" })], alignment: AlignmentType.CENTER })] })
-                            );
-                        });
+                            const pesoCells = [
+                                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "PESO", bold: true })] })] })
+                            ];
+                            ex.weight.forEach((w) => {
+                                pesoCells.push(
+                                    new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: w || "" })], alignment: AlignmentType.CENTER })] })
+                                );
+                            });
 
-                        const repCells = [
-                            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "REP", bold: true })] })] })
-                        ];
-                        ex.rep.forEach((r) => {
-                            repCells.push(
-                                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: r || "" })], alignment: AlignmentType.CENTER })] })
-                            );
-                        });
+                            const repCells = [
+                                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "REP", bold: true })] })] })
+                            ];
+                            ex.rep.forEach((r) => {
+                                repCells.push(
+                                    new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: r || "" })], alignment: AlignmentType.CENTER })] })
+                                );
+                            });
 
-                        const table = new Table({
-                            rows: [
-                                new TableRow({ children: headerCells }),
-                                new TableRow({ children: pesoCells }),
-                                new TableRow({ children: repCells })
-                            ],
-                            width: { size: 100, type: WidthType.PERCENTAGE }
-                        });
+                            const table = new Table({
+                                rows: [
+                                    new TableRow({ children: headerCells }),
+                                    new TableRow({ children: pesoCells }),
+                                    new TableRow({ children: repCells })
+                                ],
+                                width: { size: 100, type: WidthType.PERCENTAGE }
+                            });
 
-                        docChildren.push(table);
+                            docChildren.push(table);
+                        }
 
                         if (ex.note && ex.note.trim()) {
                             docChildren.push(
