@@ -616,27 +616,41 @@ async function updateProfileUsername() {
             if (!newUsername) return showToast("Inserisci un username valido!");
             if (!currentUser) return;
 
-            if (currentProfile) {
-                currentProfile.username = newUsername;
-            }
-
             if (supabaseClient) {
-                const { error } = await supabaseClient
+                // Proviamo l'update mirato per l'ID utente loggato
+                const { data, error } = await supabaseClient
                     .from('profiles')
                     .update({ username: newUsername })
-                    .eq('id', currentUser.id);
+                    .eq('id', currentUser.id)
+                    .select();
 
                 if (error) {
-                    const { error: err2 } = await supabaseClient
+                    console.error("Errore Supabase:", error);
+                    showToast("Errore Supabase: " + error.message);
+                    return;
+                }
+
+                if (data && data.length > 0) {
+                    currentProfile = data[0];
+                } else {
+                    // Se non ha aggiornato righe, forziamo l'inserimento
+                    const { data: dataIns, error: errIns } = await supabaseClient
                         .from('profiles')
-                        .upsert({ id: currentUser.id, email: currentUser.email, username: newUsername });
-                    if (err2) {
-                        showToast("Errore aggiornamento username cloud.");
+                        .upsert({ id: currentUser.id, email: currentUser.email, username: newUsername })
+                        .select();
+                    
+                    if (errIns) {
+                        console.error("Errore Upsert:", errIns);
+                        showToast("Errore salvataggio cloud.");
                         return;
                     }
+                    if (dataIns && dataIns.length > 0) currentProfile = dataIns[0];
                 }
             }
 
+            // Forza l'aggiornamento locale dell'input e dello stato
+            if (currentProfile) currentProfile.username = newUsername;
+            
             showToast("Username aggiornato con successo!");
             renderApp();
         }
