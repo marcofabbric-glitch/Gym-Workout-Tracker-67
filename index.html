@@ -491,7 +491,7 @@ async function syncDataFromCloud() {
                                 <i data-lucide="camera" class="w-5 h-5 text-white"></i>
                             </div>
                         </div>
-                        <input type="file" id="avatar-file-input" accept="image/*" class="hidden" onchange="uploadAvatarImage(this)" />
+                        <input type="file" id="avatar-file-input" accept="image/*" class="hidden" onchange="(this)" />
 
                         <div class="text-center">
                             <h2 class="text-lg font-black text-white">${escapeHtml(username)}</h2>
@@ -588,13 +588,13 @@ async function syncDataFromCloud() {
             `;
         }
 
-   async function uploadAvatarImage(input) {
+async function uploadAvatarImage(input) {
             if (!input.files || input.files.length === 0) return;
             const file = input.files[0];
 
             const img = new Image();
             img.src = URL.createObjectURL(file);
-            img.onload = () => {
+            img.onload = async () => {
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
                 const maxDim = 150;
@@ -607,26 +607,31 @@ async function syncDataFromCloud() {
                 const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
 
                 if (currentUser) {
-                    // Salviamo in locale sul dispositivo
+                    // 1. Salva subito in locale sul dispositivo corrente
                     localStorage.setItem(`gt_avatar_${currentUser.id}`, compressedBase64);
                     if (currentProfile) currentProfile.avatar_url = compressedBase64;
                     
-                    // Salviamo nel cloud di Supabase nella tabella profiles
+                    // 2. Salva nel database cloud di Supabase
                     if (supabaseClient) {
-                        supabaseClient
+                        const { error } = await supabaseClient
                             .from('profiles')
                             .upsert({ 
                                 id: currentUser.id, 
                                 email: currentUser.email, 
                                 username: currentProfile?.username || currentUser.email.split('@')[0],
                                 avatar_url: compressedBase64 
-                            })
-                            .then(({ error }) => {
-                                if (error) console.warn("Errore sync avatar cloud:", error);
-                                else console.log("Avatar sincronizzato nel cloud con successo!");
                             });
+
+                        if (error) {
+                            console.error("Errore salvataggio avatar su cloud:", error);
+                            showToast("Errore cloud avatar: " + error.message);
+                            return;
+                        } else {
+                            console.log("Avatar salvato e sincronizzato sul cloud con successo!");
+                        }
                     }
-                    showToast("Foto profilo aggiornata e sincronizzata!");
+                    
+                    showToast("Foto profilo aggiornata e sincronizzata ovunque!");
                     renderApp();
                 }
             };
