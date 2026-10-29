@@ -752,7 +752,7 @@ async function updateProfileUsername() {
             });
         }
 
-        async function deleteUserAccount() {
+async function deleteUserAccount() {
             if (!currentUser) return;
 
             if (supabaseClient) {
@@ -766,17 +766,15 @@ async function updateProfileUsername() {
                 }
             }
 
-            localStorage.removeItem(`gt_avatar_${currentUser.id}`);
-            localStorage.removeItem('gt_schede_v2');
-            localStorage.removeItem('gt_routines_v2');
-            localStorage.removeItem('gt_last_scheda_id');
+            // Pulisci completamente il localStorage
+            localStorage.clear();
 
             appState.schede = [];
             appState.routines = [];
             currentUser = null;
             currentProfile = null;
 
-            showToast("Account eliminato con successo.");
+            showToast("Account eliminato e dati locali azzerati.");
             navigateTo('auth');
         }
 
@@ -2016,11 +2014,19 @@ async function updateProfileUsername() {
             }
         }
 
-        async function logoutSupabase() {
+       async function logoutSupabase() {
             if (supabaseClient) await supabaseClient.auth.signOut();
+            
+            // Pulisci completamente la memoria locale del browser
+            localStorage.clear();
+
             currentUser = null;
             currentProfile = null;
-            showToast("Logout effettuato!");
+            appState.schede = [];
+            appState.routines = [];
+            appState.lastUsedSchedaId = null;
+
+            showToast("Logout effettuato e cache pulita!");
             navigateTo('home');
         }
 
