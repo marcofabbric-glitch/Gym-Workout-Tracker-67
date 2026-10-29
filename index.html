@@ -290,9 +290,9 @@
             });
         }
 
-        async function fetchUserProfile() {
+async function fetchUserProfile() {
             if (!supabaseClient || !currentUser) return;
-            const { data } = await supabaseClient
+            const { data, error } = await supabaseClient
                 .from('profiles')
                 .select('*')
                 .eq('id', currentUser.id)
@@ -300,6 +300,10 @@
 
             if (data) {
                 currentProfile = data;
+                // Se il cloud ha un avatar salvato, lo salviamo in locale così l'app lo mostra subito!
+                if (data.avatar_url) {
+                    localStorage.setItem(`gt_avatar_${currentUser.id}`, data.avatar_url);
+                }
             } else {
                 const username = currentUser.email ? currentUser.email.split('@')[0] : 'User';
                 const { data: newP } = await supabaseClient
