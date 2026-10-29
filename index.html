@@ -611,7 +611,7 @@
             };
         }
 
-        async function updateProfileUsername() {
+async function updateProfileUsername() {
             const newUsername = document.getElementById('prof-username').value.trim();
             if (!newUsername) return showToast("Inserisci un username valido!");
             if (!currentUser) return;
