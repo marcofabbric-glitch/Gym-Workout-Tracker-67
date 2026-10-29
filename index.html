@@ -268,19 +268,19 @@
             }
         }
 
-        async function checkSupabaseSession() {
+async function checkSupabaseSession() {
             if (!supabaseClient) return;
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (session) {
                 currentUser = session.user;
-                await fetchUserProfile();
+                await ensureUserProfileExists(); // <-- INCOLLALO QUI
                 await syncDataFromCloud();
             }
 
             supabaseClient.auth.onAuthStateChange(async (event, session) => {
                 if (session) {
                     currentUser = session.user;
-                    await fetchUserProfile();
+                    await ensureUserProfileExists(); // <-- E INCOLLALO ANCHE QUI
                     await syncDataFromCloud();
                 } else {
                     currentUser = null;
@@ -314,7 +314,41 @@ async function fetchUserProfile() {
                 currentProfile = newP;
             }
         }
+		
+async function ensureUserProfileExists() {
+            if (!supabaseClient || !currentUser) return;
 
+            const { data: existingProfile } = await supabaseClient
+                .from('profiles')
+                .select('*')
+                .eq('id', currentUser.id)
+                .maybeSingle();
+
+            if (!existingProfile) {
+                const defaultUsername = currentUser.email ? currentUser.email.split('@')[0] : 'Atleta67';
+                const { data: newProfile } = await supabaseClient
+                    .from('profiles')
+                    .insert([
+                        { 
+                            id: currentUser.id, 
+                            email: currentUser.email, 
+                            username: defaultUsername,
+                            avatar_url: localStorage.getItem(`gt_avatar_${currentUser.id}`) || null
+                        }
+                    ])
+                    .select()
+                    .single();
+
+                if (newProfile) currentProfile = newProfile;
+            } else {
+                currentProfile = existingProfile;
+                if (existingProfile.avatar_url) {
+                    localStorage.setItem(`gt_avatar_${currentUser.id}`, existingProfile.avatar_url);
+                }
+            }
+            renderApp();
+        }
+		
 async function syncDataFromCloud() {
             if (!supabaseClient || !currentUser) return;
             
@@ -491,7 +525,7 @@ async function syncDataFromCloud() {
                                 <i data-lucide="camera" class="w-5 h-5 text-white"></i>
                             </div>
                         </div>
-                        <input type="file" id="avatar-file-input" accept="image/*" class="hidden" onchange="(this)" />
+                        <input type="file" id="avatar-file-input" accept="image/*" class="hidden" onchange="uploadAvatarImage(this)" />
 
                         <div class="text-center">
                             <h2 class="text-lg font-black text-white">${escapeHtml(username)}</h2>
