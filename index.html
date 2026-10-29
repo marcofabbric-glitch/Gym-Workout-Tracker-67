@@ -3,11 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Gym Tracker - Scheda Allenamento</title>
+    <title>Gym Tracker - Scheda Allenamento & Social</title>
     <link rel="manifest" href="manifest.json">
-	
 	<link rel="apple-touch-icon" href="icon.png">
-		<meta name="theme-color" content="#121212">
+	<link rel="icon" type="image/png" href="icon.png">
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -38,6 +37,8 @@
     </script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- docx library for Word Export -->
     <script src="https://unpkg.com/docx@8.2.3/build/index.umd.js"></script>
     <!-- FileSaver for triggering downloads -->
@@ -96,7 +97,7 @@
                 </div>
                 <div>
                     <h1 class="font-black tracking-tight text-lg text-white leading-none">GYM<span class="text-brand-500">TRACK</span></h1>
-                    <span class="text-[10px] text-slate-400 font-medium tracking-wider uppercase">Schede & Workouts</span>
+                    <span class="text-[10px] text-slate-400 font-medium tracking-wider uppercase">Schede & Social</span>
                 </div>
             </div>
             <div id="header-actions" class="flex items-center space-x-2"></div>
@@ -123,126 +124,48 @@
             </div>
         </div>
 
-        <!-- Dynamic Modal (For exercise editing / inputs) -->
+        <!-- Dynamic Modal (For exercise editing / inputs / Supabase Config) -->
         <div id="dynamic-modal-backdrop" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
             <div id="dynamic-modal-content" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 w-full max-w-sm shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             </div>
         </div>
 
+        <!-- BOTTOM NAVIGATION BAR -->
+        <nav class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-slate-900/95 backdrop-blur-md border-t border-slate-800 px-6 py-2 z-40 flex items-center justify-around">
+            <button onclick="navigateTo('home')" id="nav-btn-home" class="flex flex-col items-center justify-center space-y-1 text-slate-400 hover:text-brand-500 transition">
+                <i data-lucide="home" class="w-5 h-5"></i>
+                <span class="text-[10px] font-bold">Home</span>
+            </button>
+            
+            <button onclick="navigateTo('friends')" id="nav-btn-friends" class="flex flex-col items-center justify-center space-y-1 text-slate-400 hover:text-brand-500 transition">
+                <i data-lucide="users" class="w-5 h-5"></i>
+                <span class="text-[10px] font-bold">Amici</span>
+            </button>
+            
+            <button onclick="handleProfileNavClick()" id="nav-btn-profile" class="flex flex-col items-center justify-center space-y-1 text-slate-400 hover:text-brand-500 transition">
+                <i data-lucide="user" class="w-5 h-5"></i>
+                <span id="nav-label-profile" class="text-[10px] font-bold">Profilo</span>
+            </button>
+        </nav>
+
     </div>
 
     <script>
-        // Default Base Template Definition
-        const DEFAULT_SCHEDA = {
-            id: "default_scheda_base",
-            title: "Scheda 4 Giorni Base",
-            days: [
-                {
-                    name: "GIORNO 1",
-                    exercises: [
-                        { name: "CHEST PRESS", target: ["8", "8", "8", "8"] },
-                        { name: "PECTORAL MACHINE", target: ["10", "8", "6"] },
-                        { name: "CHEST INCLINE", target: ["8", "8", "8", "8"] },
-                        { name: "ALZATE FRONTALI CON BILANC.", target: ["12", "12", "12"] },
-                        { name: "CURL BILANC. IN PIEDI", target: ["10/8", "10/8", "10/8"] },
-                        { name: "CURL MACHINE SINGOLA", target: ["8", "8", "8"] }
-                    ]
-                },
-                {
-                    name: "GIORNO 2",
-                    exercises: [
-                        { name: "LEG EXTENSION", target: ["10", "8", "6"] },
-                        { name: "PRESSA 45°", target: ["8/10", "8/10", "8/10"] },
-                        { name: "LEG CURL STESO", target: ["10", "10", "10"] },
-                        { name: "PENDULUM SQUAT", target: ["8/10", "8/10", "8/10"] },
-                        { name: "ALZATE LATERALI SEDUTO", target: ["10", "10", "10", "10"] },
-                        { name: "SHOULDER PRESS", target: ["8", "8", "6"] }
-                    ]
-                },
-                {
-                    name: "GIORNO 3",
-                    exercises: [
-                        { name: "LAT MACHINE CON TRIANGOLO", target: ["6/8", "6/8", "6/8", "6/8"] },
-                        { name: "ROWING STRETTA", target: ["10", "8", "6"] },
-                        { name: "PULLEY", target: ["8/10", "8/10", "8/10", "8/10"] },
-                        { name: "PECK BACK", target: ["10", "10", "10"] },
-                        { name: "FRENCH PRESS BILANC. STESO", target: ["8", "8", "8"] },
-                        { name: "PUSH DOWN CON FUNE", target: ["8", "8", "8"] }
-                    ]
-                },
-                {
-                    name: "GIORNO 4",
-                    exercises: [
-                        { name: "PEC FLY", target: ["10", "10", "10"] },
-                        { name: "PANCA 30° AL MULTIPOWER", target: ["10", "8", "6"] },
-                        { name: "REMATORE BILANC PRESA INVERSA", target: ["10", "8", "6"] },
-                        { name: "CURL MARTELLO IN PIEDI + PUSH DOWN CON ASTA CURVA", target: ["8", "8", "8"] },
-                        { name: "HACK SQUAT", target: ["8/10", "8/10", "8/10"] },
-                        { name: "AFFONDI SUL POSTO", target: ["10", "10", "10"] }
-                    ]
-                }
-            ]
-        };
+        // Clean state with zero pre-loaded default schede or sample routines
+        const DEFAULT_SCHEDA = null;
+        const INITIAL_ROUTINE_COMPLETED = null;
 
-        const INITIAL_ROUTINE_COMPLETED = {
-            id: "routine_21_10_2026",
-            title: "Scheda 21 Ottobre 2026",
-            createdDate: "2026-10-21T09:00:00.000Z",
-            schedaId: "default_scheda_base",
-            days: [
-                {
-                    name: "GIORNO 1",
-                    exercises: [
-                        { name: "CHEST PRESS", target: ["8", "8", "8", "8"], weight: ["N/A", "N/A", "N/A", "N/A"], rep: ["N/A", "N/A", "N/A", "N/A"], note: "" },
-                        { name: "PECTORAL MACHINE", target: ["10", "8", "6"], weight: ["N/A", "N/A", "N/A"], rep: ["N/A", "N/A", "N/A"], note: "" },
-                        { name: "CHEST INCLINE", target: ["8", "8", "8", "8"], weight: ["15", "15", "12.5", "N/A"], rep: ["8", "5", "5", "N/A"], note: "" },
-                        { name: "ALZATE FRONTALI CON BILANC.", target: ["12", "12", "12"], weight: ["N/A", "N/A", "N/A"], rep: ["N/A", "N/A", "N/A"], note: "" },
-                        { name: "CURL BILANC. IN PIEDI", target: ["10/8", "10/8", "10/8"], weight: ["N/A", "N/A", "N/A"], rep: ["N/A", "N/A", "N/A"], note: "" },
-                        { name: "CURL MACHINE SINGOLA", target: ["8", "8", "8"], weight: ["N/A", "N/A", "N/A"], rep: ["N/A", "N/A", "N/A"], note: "" }
-                    ]
-                },
-                {
-                    name: "GIORNO 2",
-                    exercises: [
-                        { name: "LEG EXTENSION", target: ["10", "8", "6"], weight: ["20", "25", "30"], rep: ["10", "8", "8"], note: "" },
-                        { name: "PRESSA 45°", target: ["8/10", "8/10", "8/10"], weight: ["30", "40", "45"], rep: ["10", "10", "8"], note: "" },
-                        { name: "LEG CURL STESO", target: ["10", "10", "10"], weight: ["15", "15", "10"], rep: ["10", "6", "7"], note: "" },
-                        { name: "PENDULUM SQUAT", target: ["8/10", "8/10", "8/10"], weight: ["10", "5", "5"], rep: ["5", "6", "5"], note: "" },
-                        { name: "ALZATE LATERALI SEDUTO", target: ["10", "10", "10", "10"], weight: ["5", "5", "5", "5"], rep: ["10", "11", "10", "8"], note: "" },
-                        { name: "SHOULDER PRESS", target: ["8", "8", "6"], weight: ["20", "20", "25"], rep: ["8", "8", "6"], note: "" }
-                    ]
-                },
-                {
-                    name: "GIORNO 3",
-                    exercises: [
-                        { name: "LAT MACHINE CON TRIANGOLO", target: ["6/8", "6/8", "6/8", "6/8"], weight: ["35", "40", "40", "35"], rep: ["8", "6", "5", "6"], note: "" },
-                        { name: "ROWING STRETTA", target: ["10", "8", "6"], weight: ["20", "20", "20"], rep: ["8", "8", "8"], note: "" },
-                        { name: "PULLEY", target: ["8/10", "8/10", "8/10", "8/10"], weight: ["25+20", "20", "20", "20"], rep: ["5+3", "9", "7", "8"], note: "" },
-                        { name: "PECK BACK", target: ["10", "10", "10"], weight: ["27.5", "27.5", "27.5"], rep: ["8", "7", "8"], note: "" },
-                        { name: "FRENCH PRESS BILANC. STESO", target: ["8", "8", "8"], weight: ["7.5", "7.5", "5"], rep: ["7", "5", "8"], note: "" },
-                        { name: "PUSH DOWN CON FUNE", target: ["8", "8", "8"], weight: ["15+10", "10", "10"], rep: ["5+5", "9", "8"], note: "" }
-                    ]
-                },
-                {
-                    name: "GIORNO 4",
-                    exercises: [
-                        { name: "PEC FLY", target: ["10", "10", "10"], weight: ["27.5", "27.5", "27.5"], rep: ["8", "8", "7"], note: "" },
-                        { name: "PANCA 30° AL MULTIPOWER", target: ["10", "8", "6"], weight: ["2.5", "2.5", "2.5"], rep: ["N/A", "N/A", "N/A"], note: "" },
-                        { name: "REMATORE BILANC PRESA INVERSA", target: ["10", "8", "6"], weight: ["15", "15", "15"], rep: ["10", "10", "10"], note: "" },
-                        { name: "CURL MARTELLO IN PIEDI + PUSH DOWN CON ASTA CURVA", target: ["8", "8", "8"], weight: ["5+30", "5+30", "5+30"], rep: ["10+8", "10+8", "10+7"], note: "" },
-                        { name: "HACK SQUAT", target: ["8/10", "8/10", "8/10"], weight: ["VUOTO", "VUOTO", "VUOTO"], rep: ["6", "6", "6"], note: "" },
-                        { name: "AFFONDI SUL POSTO", target: ["10", "10", "10"], weight: ["N/A", "N/A", "N/A"], rep: ["N/A", "N/A", "N/A"], note: "" }
-                    ]
-                }
-            ]
-        };
+        // Supabase & App State
+        let supabaseClient = null;
+        let currentUser = null;
+        let currentProfile = null;
+        let isSignUpMode = false;
 
-        // App State
         let appState = {
             schede: [],
             routines: [],
             lastUsedSchedaId: null,
-            currentView: 'home', // 'home', 'routine-detail', 'archive', 'schede-list', 'scheda-builder', 'scheda-select'
+            currentView: 'home', // 'home', 'routine-detail', 'archive', 'schede-list', 'scheda-builder', 'scheda-select', 'friends', 'auth', 'profile'
             currentRoutineId: null,
             currentDayIndex: 0,
             archiveSortOrder: 'desc',
@@ -259,9 +182,44 @@
 
         window.addEventListener('DOMContentLoaded', () => {
             loadFromLocalStorage();
+            initSupabase();
             renderApp();
             lucide.createIcons();
         });
+
+        function handleProfileNavClick() {
+            if (currentUser) {
+                navigateTo('profile');
+            } else {
+                navigateTo('auth');
+            }
+        }
+
+        function updateBottomNavActiveState() {
+            const btnHome = document.getElementById('nav-btn-home');
+            const btnFriends = document.getElementById('nav-btn-friends');
+            const btnProfile = document.getElementById('nav-btn-profile');
+            const labelProfile = document.getElementById('nav-label-profile');
+
+            if (!btnHome || !btnFriends || !btnProfile) return;
+
+            // Reset styles
+            [btnHome, btnFriends, btnProfile].forEach(btn => {
+                btn.className = "flex flex-col items-center justify-center space-y-1 text-slate-400 hover:text-brand-500 transition";
+            });
+
+            if (labelProfile) {
+                labelProfile.textContent = currentUser ? 'Profilo' : 'Login';
+            }
+
+            if (appState.currentView === 'home') {
+                btnHome.className = "flex flex-col items-center justify-center space-y-1 text-brand-500 transition scale-105 font-bold";
+            } else if (appState.currentView === 'friends') {
+                btnFriends.className = "flex flex-col items-center justify-center space-y-1 text-brand-500 transition scale-105 font-bold";
+            } else if (appState.currentView === 'auth' || appState.currentView === 'profile') {
+                btnProfile.className = "flex flex-col items-center justify-center space-y-1 text-brand-500 transition scale-105 font-bold";
+            }
+        }
 
         function loadFromLocalStorage() {
             const savedSchede = localStorage.getItem('gt_schede_v2');
@@ -270,19 +228,16 @@
 
             if (savedSchede) {
                 try { appState.schede = JSON.parse(savedSchede); } catch(e) { appState.schede = []; }
-            }
-            if (!appState.schede || appState.schede.length === 0) {
-                appState.schede = [JSON.parse(JSON.stringify(DEFAULT_SCHEDA))];
+            } else {
+                appState.schede = [];
             }
 
             if (savedRoutines) {
                 try { appState.routines = JSON.parse(savedRoutines); } catch(e) { appState.routines = []; }
-            }
-            if (!appState.routines || appState.routines.length === 0) {
-                appState.routines = [JSON.parse(JSON.stringify(INITIAL_ROUTINE_COMPLETED))];
+            } else {
+                appState.routines = [];
             }
 
-            // Ensure notes field exists in older saved entries
             appState.routines.forEach(r => {
                 r.days.forEach(d => {
                     d.exercises.forEach(ex => {
@@ -291,7 +246,7 @@
                 });
             });
 
-            appState.lastUsedSchedaId = savedLastScheda || appState.schede[0].id;
+            appState.lastUsedSchedaId = savedLastScheda || (appState.schede.length > 0 ? appState.schede[0].id : null);
             saveToLocalStorage();
         }
 
@@ -300,6 +255,119 @@
             localStorage.setItem('gt_routines_v2', JSON.stringify(appState.routines));
             if (appState.lastUsedSchedaId) {
                 localStorage.setItem('gt_last_scheda_id', appState.lastUsedSchedaId);
+            }
+        }
+
+        function initSupabase() {
+            const url = localStorage.getItem('gt_sb_url');
+            const key = localStorage.getItem('gt_sb_key');
+
+            if (url && key && window.supabase) {
+                try {
+                    supabaseClient = window.supabase.createClient(url, key);
+                    checkSupabaseSession();
+                } catch (e) {
+                    console.warn("Errore inizializzazione Supabase", e);
+                }
+            }
+        }
+
+        async function checkSupabaseSession() {
+            if (!supabaseClient) return;
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (session) {
+                currentUser = session.user;
+                await fetchUserProfile();
+                await syncDataFromCloud();
+            }
+
+            supabaseClient.auth.onAuthStateChange(async (event, session) => {
+                if (session) {
+                    currentUser = session.user;
+                    await fetchUserProfile();
+                    await syncDataFromCloud();
+                } else {
+                    currentUser = null;
+                    currentProfile = null;
+                }
+                renderApp();
+            });
+        }
+
+        async function fetchUserProfile() {
+            if (!supabaseClient || !currentUser) return;
+            const { data } = await supabaseClient
+                .from('profiles')
+                .select('*')
+                .eq('id', currentUser.id)
+                .single();
+
+            if (data) {
+                currentProfile = data;
+            } else {
+                const username = currentUser.email ? currentUser.email.split('@')[0] : 'User';
+                const { data: newP } = await supabaseClient
+                    .from('profiles')
+                    .insert([{ id: currentUser.id, email: currentUser.email, username }])
+                    .select()
+                    .single();
+                currentProfile = newP;
+            }
+        }
+
+        async function syncDataFromCloud() {
+            if (!supabaseClient || !currentUser) return;
+            
+            // Sync Schede
+            const { data: cloudSchede } = await supabaseClient
+                .from('schede')
+                .select('*')
+                .eq('user_id', currentUser.id);
+
+            if (cloudSchede && cloudSchede.length > 0) {
+                appState.schede = cloudSchede.map(s => typeof s.content === 'string' ? JSON.parse(s.content) : s.content);
+                saveToLocalStorage();
+            } else {
+                await syncSchedeToCloud();
+            }
+
+            // Sync Routines
+            const { data: cloudRoutines } = await supabaseClient
+                .from('routines')
+                .select('*')
+                .eq('user_id', currentUser.id);
+
+            if (cloudRoutines && cloudRoutines.length > 0) {
+                appState.routines = cloudRoutines.map(r => typeof r.content === 'string' ? JSON.parse(r.content) : r.content);
+                saveToLocalStorage();
+            } else {
+                await syncRoutinesToCloud();
+            }
+
+            renderApp();
+        }
+
+        async function syncSchedeToCloud() {
+            if (!supabaseClient || !currentUser) return;
+            for (let s of appState.schede) {
+                await supabaseClient.from('schede').upsert({
+                    id: s.id,
+                    user_id: currentUser.id,
+                    title: s.title,
+                    content: s
+                });
+            }
+        }
+
+        async function syncRoutinesToCloud() {
+            if (!supabaseClient || !currentUser) return;
+            for (let r of appState.routines) {
+                await supabaseClient.from('routines').upsert({
+                    id: r.id,
+                    user_id: currentUser.id,
+                    title: r.title,
+                    content: r
+                });
             }
         }
 
@@ -343,6 +411,9 @@
         function renderApp() {
             const mainContent = document.getElementById('main-content');
             const headerActions = document.getElementById('header-actions');
+            
+            if (!mainContent || !headerActions) return;
+
             mainContent.innerHTML = '';
             headerActions.innerHTML = '';
 
@@ -365,9 +436,227 @@
                 case 'archive':
                     renderArchiveView(mainContent, headerActions);
                     break;
+                case 'friends':
+                    renderFriendsView(mainContent, headerActions);
+                    break;
+                case 'auth':
+                    renderAuthView(mainContent, headerActions);
+                    break;
+                case 'profile':
+                    renderProfileView(mainContent, headerActions);
+                    break;
             }
 
+            updateBottomNavActiveState();
             lucide.createIcons();
+        }
+
+        // =========================================================================
+        // VIEW: PROFILE MANAGEMENT (AVATAR, DATI PERSONALI, STATS & SETTINGS)
+        // =========================================================================
+        function renderProfileView(container, headerActions) {
+            headerActions.innerHTML = `
+                <button onclick="navigateTo('home')" class="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition">
+                    <i data-lucide="home" class="w-4 h-4"></i>
+                </button>
+            `;
+
+            if (!currentUser) {
+                navigateTo('auth');
+                return;
+            }
+
+            const avatarUrl = currentProfile?.avatar_url || null;
+            const username = currentProfile?.username || currentUser.email?.split('@')[0] || 'Atleta';
+            const email = currentUser.email || '';
+
+            // Stats calculations
+            const totalWorkouts = appState.routines.length;
+            const completedWorkouts = appState.routines.filter(r => isRoutineComplete(r)).length;
+            const totalSchede = appState.schede.length;
+
+            container.innerHTML = `
+                <div class="space-y-5 animate-fade-in pb-12">
+                    
+                    <!-- Avatar & Header Badge -->
+                    <div class="p-5 rounded-3xl bg-slate-900 border border-slate-800 flex flex-col items-center justify-center space-y-3 relative overflow-hidden shadow-xl">
+                        <div class="relative group cursor-pointer" onclick="document.getElementById('avatar-file-input').click()">
+                            <div class="w-20 h-20 rounded-full overflow-hidden bg-brand-500/20 border-2 border-brand-500 flex items-center justify-center text-brand-500 font-black text-2xl shadow-lg shadow-brand-500/20">
+                                ${avatarUrl ? `<img src="${escapeHtml(avatarUrl)}" class="w-full h-full object-cover" onerror="this.src=''" />` : username[0].toUpperCase()}
+                            </div>
+                            <div class="absolute inset-0 bg-slate-950/60 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
+                                <i data-lucide="camera" class="w-5 h-5 text-white"></i>
+                            </div>
+                        </div>
+                        <input type="file" id="avatar-file-input" accept="image/*" class="hidden" onchange="uploadAvatarImage(this)" />
+
+                        <div class="text-center">
+                            <h2 class="text-lg font-black text-white">${escapeHtml(username)}</h2>
+                            <p class="text-xs text-slate-400">${escapeHtml(email)}</p>
+                        </div>
+
+                        <span class="px-3 py-1 rounded-full bg-brand-500/10 border border-brand-500/30 text-brand-500 font-mono text-[10px] font-bold">
+                            ACCOUNT CLOUD ATTIVO
+                        </span>
+                    </div>
+
+                    <!-- Quick Stats Bar -->
+                    <div class="grid grid-cols-3 gap-2">
+                        <div class="p-3 rounded-2xl bg-slate-900 border border-slate-800 text-center">
+                            <span class="block font-black text-lg text-brand-500">${totalWorkouts}</span>
+                            <span class="text-[10px] font-semibold text-slate-400 uppercase">Routine</span>
+                        </div>
+                        <div class="p-3 rounded-2xl bg-slate-900 border border-slate-800 text-center">
+                            <span class="block font-black text-lg text-emerald-400">${completedWorkouts}</span>
+                            <span class="text-[10px] font-semibold text-slate-400 uppercase">Completati</span>
+                        </div>
+                        <div class="p-3 rounded-2xl bg-slate-900 border border-slate-800 text-center">
+                            <span class="block font-black text-lg text-amber-400">${totalSchede}</span>
+                            <span class="text-[10px] font-semibold text-slate-400 uppercase">Schede</span>
+                        </div>
+                    </div>
+
+                    <!-- Edit Profile Credentials -->
+                    <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+                        <h3 class="text-xs font-bold text-brand-500 uppercase tracking-wider flex items-center gap-1.5">
+                            <i data-lucide="user-check" class="w-4 h-4"></i>
+                            <span>Dati Personali</span>
+                        </h3>
+
+                        <div class="space-y-3">
+                            <div>
+                                <label class="text-[11px] font-semibold text-slate-400 block mb-1">Username</label>
+                                <div class="flex gap-2">
+                                    <input type="text" id="prof-username" value="${escapeHtml(username)}" class="flex-1 px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl font-bold text-xs text-white focus:border-brand-500 focus:outline-none" />
+                                    <button onclick="updateProfileUsername()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-brand-500 font-bold text-xs rounded-xl">Aggiorna</button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="text-[11px] font-semibold text-slate-400 block mb-1">Email</label>
+                                <div class="flex gap-2">
+                                    <input type="email" id="prof-email" value="${escapeHtml(email)}" class="flex-1 px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl font-bold text-xs text-white focus:border-brand-500 focus:outline-none" />
+                                    <button onclick="updateProfileEmail()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-brand-500 font-bold text-xs rounded-xl">Aggiorna</button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="text-[11px] font-semibold text-slate-400 block mb-1">Nuova Password</label>
+                                <div class="flex gap-2">
+                                    <input type="password" id="prof-password" placeholder="Nuova password..." class="flex-1 px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl font-bold text-xs text-white focus:border-brand-500 focus:outline-none" />
+                                    <button onclick="updateProfilePassword()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-brand-500 font-bold text-xs rounded-xl">Cambia</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- App & Database Settings -->
+                    <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+                        <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                            <i data-lucide="settings" class="w-4 h-4"></i>
+                            <span>Impostazioni & Sistema</span>
+                        </h3>
+
+                        <div class="space-y-2">
+                            <button onclick="openConfigModal()" class="w-full p-3 rounded-xl bg-slate-950 hover:bg-slate-800/80 border border-slate-800 text-left flex items-center justify-between text-xs transition">
+                                <div class="flex items-center space-x-2 text-slate-300">
+                                    <i data-lucide="database" class="w-4 h-4 text-brand-500"></i>
+                                    <span>Parametri Supabase (URL / Key)</span>
+                                </div>
+                                <i data-lucide="chevron-right" class="w-4 h-4 text-slate-500"></i>
+                            </button>
+
+                            <button onclick="syncDataFromCloud()" class="w-full p-3 rounded-xl bg-slate-950 hover:bg-slate-800/80 border border-slate-800 text-left flex items-center justify-between text-xs transition">
+                                <div class="flex items-center space-x-2 text-slate-300">
+                                    <i data-lucide="refresh-cw" class="w-4 h-4 text-emerald-400"></i>
+                                    <span>Forza Sincronizzazione Cloud</span>
+                                </div>
+                                <i data-lucide="chevron-right" class="w-4 h-4 text-slate-500"></i>
+                            </button>
+
+                            <button onclick="logoutSupabase()" class="w-full p-3 rounded-xl bg-red-950/40 hover:bg-red-900/40 border border-red-900/40 text-left flex items-center justify-between text-xs text-red-400 transition">
+                                <div class="flex items-center space-x-2">
+                                    <i data-lucide="log-out" class="w-4 h-4"></i>
+                                    <span>Disconnetti Account</span>
+                                </div>
+                                <i data-lucide="chevron-right" class="w-4 h-4 text-red-400"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            `;
+        }
+
+        async function uploadAvatarImage(input) {
+            if (!input.files || input.files.length === 0) return;
+            const file = input.files[0];
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const base64Url = e.target.result;
+                if (!supabaseClient || !currentUser) return;
+
+                const { error } = await supabaseClient
+                    .from('profiles')
+                    .update({ avatar_url: base64Url })
+                    .eq('id', currentUser.id);
+
+                if (error) {
+                    showToast("Errore durante il caricamento avatar.");
+                } else {
+                    if (currentProfile) currentProfile.avatar_url = base64Url;
+                    showToast("Foto profilo aggiornata!");
+                    renderApp();
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function updateProfileUsername() {
+            const newUsername = document.getElementById('prof-username').value.trim();
+            if (!newUsername) return showToast("Inserisci un username valido!");
+            if (!supabaseClient || !currentUser) return;
+
+            const { error } = await supabaseClient
+                .from('profiles')
+                .update({ username: newUsername })
+                .eq('id', currentUser.id);
+
+            if (error) {
+                showToast("Errore aggiornamento username.");
+            } else {
+                if (currentProfile) currentProfile.username = newUsername;
+                showToast("Username aggiornato!");
+                renderApp();
+            }
+        }
+
+        async function updateProfileEmail() {
+            const newEmail = document.getElementById('prof-email').value.trim();
+            if (!newEmail) return showToast("Inserisci una mail valida!");
+            if (!supabaseClient) return;
+
+            const { error } = await supabaseClient.auth.updateUser({ email: newEmail });
+            if (error) {
+                showToast(error.message || "Errore aggiornamento email.");
+            } else {
+                showToast("Email di conferma inviata al nuovo indirizzo!");
+            }
+        }
+
+        async function updateProfilePassword() {
+            const newPassword = document.getElementById('prof-password').value;
+            if (!newPassword || newPassword.length < 6) return showToast("La password deve avere almeno 6 caratteri!");
+            if (!supabaseClient) return;
+
+            const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
+            if (error) {
+                showToast(error.message || "Errore aggiornamento password.");
+            } else {
+                showToast("Password aggiornata con successo!");
+                document.getElementById('prof-password').value = '';
+            }
         }
 
         // =========================================================================
@@ -375,10 +664,15 @@
         // =========================================================================
         function renderHomeView(container, headerActions) {
             headerActions.innerHTML = `
-                <button onclick="navigateTo('archive')" class="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition flex items-center gap-1.5 text-xs font-semibold">
-                    <i data-lucide="archive" class="w-4 h-4"></i>
-                    <span>Archivio</span>
-                </button>
+                ${currentUser ? `
+                    <button onclick="logoutSupabase()" class="p-2 rounded-xl bg-slate-800 text-red-400 hover:bg-slate-700 transition text-xs font-semibold" title="Logout">
+                        <i data-lucide="log-out" class="w-4 h-4"></i>
+                    </button>
+                ` : `
+                    <button onclick="navigateTo('auth')" class="p-2 rounded-xl bg-brand-500 text-slate-950 font-bold hover:bg-brand-600 transition text-xs">
+                        Login
+                    </button>
+                `}
             `;
 
             const activeRoutine = getActiveIncompleteRoutine();
@@ -386,8 +680,33 @@
             const nextDayIdx = isIncomplete ? getNextIncompleteDayIndex(activeRoutine) : 0;
 
             container.innerHTML = `
-                <div class="space-y-5 animate-fade-in">
+                <div class="space-y-5 animate-fade-in pb-12">
                     
+                    ${currentUser ? `
+                        <div class="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+                            <div class="flex items-center space-x-2.5">
+                                <div class="w-8 h-8 rounded-full bg-brand-500/20 text-brand-500 flex items-center justify-center font-bold text-xs border border-brand-500/30">
+                                    ${(currentProfile?.username || 'U')[0].toUpperCase()}
+                                </div>
+                                <div>
+                                    <h4 class="font-bold text-xs text-white">${escapeHtml(currentProfile?.username || currentUser.email)}</h4>
+                                    <span class="text-[10px] text-brand-500 font-mono">Cloud Sync Attivo</span>
+                                </div>
+                            </div>
+                            <button onclick="openConfigModal()" class="text-slate-500 hover:text-slate-300">
+                                <i data-lucide="settings" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    ` : `
+                        <div onclick="navigateTo('auth')" class="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800/80 hover:border-slate-700 transition cursor-pointer flex items-center justify-between">
+                            <div class="space-y-0.5">
+                                <span class="text-xs font-bold text-amber-400">Modalità Locale (Offline)</span>
+                                <p class="text-[10px] text-slate-400">Accedi per sincronizzare le tue schede tra dispositivi</p>
+                            </div>
+                            <i data-lucide="chevron-right" class="w-4 h-4 text-slate-500"></i>
+                        </div>
+                    `}
+
                     <div class="p-5 rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 border border-slate-800 shadow-xl relative overflow-hidden">
                         <div class="absolute -right-6 -bottom-6 w-32 h-32 bg-brand-500/10 rounded-full blur-2xl"></div>
                         <div class="relative z-10 space-y-4">
@@ -482,6 +801,7 @@
             });
 
             saveToLocalStorage();
+            syncRoutinesToCloud();
             showToast("Allenamento terminato e salvato!");
             navigateTo('home');
         }
@@ -552,10 +872,10 @@
             appState.routines.unshift(newRoutine);
             appState.lastUsedSchedaId = scheda.id;
             saveToLocalStorage();
+            syncRoutinesToCloud();
             showToast("Nuova routine avviata!");
             navigateTo('routine-detail', { routineId: newRoutine.id, dayIndex: 0 });
         }
-
 
         // =========================================================================
         // VIEW: SCHEDE LIST (GESTIONE SCHEDE)
@@ -612,12 +932,15 @@
                 showToast("Devi mantenere almeno una scheda salvata!");
                 return;
             }
-            showModal("Elimina Scheda", "Sei sicuro di voler eliminare questo modello di scheda?", () => {
+            showModal("Elimina Scheda", "Sei sicuro di voler eliminare questo modello di scheda?", async () => {
                 appState.schede = appState.schede.filter(s => s.id !== schedaId);
                 if (appState.lastUsedSchedaId === schedaId) {
                     appState.lastUsedSchedaId = appState.schede[0].id;
                 }
                 saveToLocalStorage();
+                if (supabaseClient && currentUser) {
+                    await supabaseClient.from('schede').delete().eq('id', schedaId);
+                }
                 showToast("Scheda eliminata!");
                 renderApp();
             });
@@ -663,8 +986,6 @@
 
             container.innerHTML = `
                 <div class="space-y-4">
-                    
-                    <!-- Title & Day count settings -->
                     <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
                         <div>
                             <label class="text-xs font-semibold text-slate-400">Titolo della Scheda</label>
@@ -681,7 +1002,6 @@
                         </div>
                     </div>
 
-                    <!-- Day Navigation Tabs -->
                     <div class="flex overflow-x-auto gap-1.5 p-1 bg-slate-900 rounded-2xl border border-slate-800">
                         ${scheda.days.map((day, idx) => `
                             <button onclick="setBuilderDay(${idx})" class="flex-1 min-w-[70px] py-2 px-2 rounded-xl font-bold text-xs transition ${idx === appState.builderCurrentDay ? 'bg-brand-500 text-slate-950' : 'text-slate-400 hover:text-white'}">
@@ -690,14 +1010,12 @@
                         `).join('')}
                     </div>
 
-                    <!-- Day Name Config -->
                     <div class="flex items-center space-x-2">
                         <label class="text-xs font-semibold text-slate-400 whitespace-nowrap">Nome Giorno:</label>
                         <input type="text" value="${escapeHtml(currentDay.name)}" onchange="updateBuilderDayName(${appState.builderCurrentDay}, this.value)"
                             class="w-full px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-bold text-white focus:border-brand-500 focus:outline-none" />
                     </div>
 
-                    <!-- Exercise List for current day -->
                     <div class="space-y-3">
                         <div class="flex items-center justify-between">
                             <h3 class="font-bold text-sm text-slate-300">Esercizi (${currentDay.exercises.length})</h3>
@@ -722,7 +1040,6 @@
                         `).join('')}
                     </div>
 
-                    <!-- Builder Action Buttons (+ / -) -->
                     <div class="grid grid-cols-2 gap-3 pt-2">
                         <button onclick="openAddBuilderExerciseModal()" class="py-3 px-4 rounded-2xl bg-brand-500 hover:bg-brand-600 text-slate-950 font-extrabold text-xs flex items-center justify-center space-x-2 transition shadow-lg shadow-brand-500/20">
                             <i data-lucide="plus" class="w-4 h-4"></i>
@@ -735,7 +1052,6 @@
                         </button>
                     </div>
 
-                    <!-- Save / Cancel -->
                     <div class="pt-4 border-t border-slate-800 flex items-center space-x-3">
                         <button onclick="cancelSchedaBuilder()" class="flex-1 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition">
                             Annulla
@@ -810,12 +1126,12 @@
             }
 
             saveToLocalStorage();
+            syncSchedeToCloud();
             showToast("Scheda salvata!");
             appState.builderScheda = null;
             navigateTo('schede-list');
         }
 
-        // Add / Edit Exercise Modal for Builder
         function openAddBuilderExerciseModal() {
             openExerciseEditorModal(null, (newEx) => {
                 appState.builderScheda.days[appState.builderCurrentDay].exercises.push(newEx);
@@ -830,7 +1146,6 @@
                 renderApp();
             });
         }
-
 
         // =========================================================================
         // VIEW: ROUTINE DETAIL (ACTIVE OR ARCHIVED ROUTINE)
@@ -861,7 +1176,6 @@
             container.innerHTML = `
                 <div class="space-y-4 select-none" id="swipe-container">
                     
-                    <!-- Header Routine Navigation -->
                     <div class="space-y-3">
                         <div class="flex items-center justify-between">
                             <button onclick="navigateRoutineSwipe('right')" ${!prevRoutine ? 'disabled class="opacity-30 p-1.5 rounded-lg bg-slate-900 border border-slate-800"' : 'class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 transition"'}>
@@ -879,7 +1193,6 @@
                             </button>
                         </div>
 
-                        <!-- Days Tabs -->
                         <div class="flex overflow-x-auto gap-1 bg-slate-900 p-1 rounded-2xl border border-slate-800">
                             ${routine.days.map((day, idx) => {
                                 const active = idx === appState.currentDayIndex;
@@ -894,7 +1207,6 @@
                         </div>
                     </div>
 
-                    <!-- Current Day Card -->
                     <div id="routine-card-body" class="swipe-card space-y-4">
                         <div class="flex items-center justify-between px-1">
                             <h3 class="font-extrabold text-white text-base flex items-center space-x-2">
@@ -917,7 +1229,6 @@
                                     </button>
                                 </div>
 
-                                <!-- Exercise Table -->
                                 <div class="overflow-x-auto">
                                     <table class="w-full text-center border-collapse">
                                         <thead>
@@ -957,7 +1268,6 @@
                                     </table>
                                 </div>
 
-                                <!-- Exercise Note Area -->
                                 <div class="pt-1">
                                     <textarea placeholder="Aggiungi note sull'esercizio (es. sensazioni, sedile...)"
                                         onchange="updateExerciseNote('${routine.id}', ${appState.currentDayIndex}, ${exIdx}, this.value)"
@@ -968,7 +1278,6 @@
                         `).join('')}
                     </div>
 
-                    <!-- Footer options -->
                     <div class="pt-2 flex items-center justify-between">
                         <button onclick="confirmDeleteRoutine('${routine.id}')" class="text-xs text-red-400 hover:text-red-300 flex items-center space-x-1 p-2 rounded-lg hover:bg-red-500/10 transition">
                             <i data-lucide="trash-2" class="w-4 h-4"></i>
@@ -1031,6 +1340,7 @@
             if (routine && newTitle.trim() !== "") {
                 routine.title = newTitle.trim();
                 saveToLocalStorage();
+                syncRoutinesToCloud();
                 showToast("Titolo aggiornato!");
             }
         }
@@ -1040,6 +1350,7 @@
             if (routine) {
                 routine.days[dayIdx].exercises[exIdx][field][setIdx] = value;
                 saveToLocalStorage();
+                syncRoutinesToCloud();
             }
         }
 
@@ -1048,26 +1359,28 @@
             if (routine) {
                 routine.days[dayIdx].exercises[exIdx].note = noteValue;
                 saveToLocalStorage();
+                syncRoutinesToCloud();
             }
         }
 
         function confirmDeleteRoutine(routineId) {
-            showModal("Elimina Routine", "Sei sicuro di voler eliminare definitivamente questa scheda?", () => {
+            showModal("Elimina Routine", "Sei sicuro di voler eliminare definitivamente questa scheda?", async () => {
                 appState.routines = appState.routines.filter(r => r.id !== routineId);
                 saveToLocalStorage();
+                if (supabaseClient && currentUser) {
+                    await supabaseClient.from('routines').delete().eq('id', routineId);
+                }
                 showToast("Routine eliminata!");
                 navigateTo('home');
             });
         }
 
-        // Active Exercise Editor Modal
         function openEditActiveExerciseModal(routineId, dayIdx, exIdx) {
             const routine = appState.routines.find(r => r.id === routineId);
             if (!routine) return;
 
             const ex = routine.days[dayIdx].exercises[exIdx];
             openExerciseEditorModal(ex, (updatedEx) => {
-                // Adjust weight and rep arrays according to new series count
                 const newLength = updatedEx.target.length;
                 const newWeight = [];
                 const newRep = [];
@@ -1082,11 +1395,11 @@
                 ex.rep = newRep;
 
                 saveToLocalStorage();
+                syncRoutinesToCloud();
                 showToast("Esercizio aggiornato!");
                 renderApp();
             });
         }
-
 
         // =========================================================================
         // VIEW: ARCHIVIO (STORICO ROUTINE)
@@ -1160,6 +1473,443 @@
             renderApp();
         }
 
+        // =========================================================================
+        // VIEW: AMICI & COMMUNITY
+        // =========================================================================
+        function renderFriendsView(container, headerActions) {
+            headerActions.innerHTML = `
+                <button onclick="navigateTo('home')" class="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition">
+                    <i data-lucide="home" class="w-4 h-4"></i>
+                </button>
+            `;
+
+            if (!currentUser) {
+                container.innerHTML = `
+                    <div class="p-6 text-center rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+                        <i data-lucide="lock" class="w-10 h-10 text-brand-500 mx-auto"></i>
+                        <h3 class="font-bold text-white text-base">Accedi per usare la Rete Amici</h3>
+                        <p class="text-xs text-slate-400">Cerca altri atleti, condividi schede di allenamento e clonale direttamente nel tuo account.</p>
+                        <button onclick="navigateTo('auth')" class="py-2.5 px-6 rounded-xl bg-brand-500 hover:bg-brand-600 text-slate-950 font-extrabold text-xs">
+                            Accedi / Registrati
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="space-y-5">
+                    <div>
+                        <h2 class="text-xl font-black text-white">Amici & Community</h2>
+                        <p class="text-xs text-slate-400">Cerca utenti e naviga tra le loro schede</p>
+                    </div>
+
+                    <!-- Search Friend -->
+                    <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+                        <label class="text-xs font-bold text-brand-500 block">Cerca Utente per Username</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="input-search-username" placeholder="Username" class="flex-1 px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl font-bold text-xs text-white focus:border-brand-500 focus:outline-none" />
+                            <button onclick="searchAndAddFriend()" class="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-slate-950 font-bold text-xs rounded-xl">
+                                Cerca
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Pending Requests -->
+                    <div id="pending-friends-container" class="space-y-2 hidden">
+                        <h3 class="text-xs font-bold text-amber-400 uppercase tracking-wider">Richieste in Attesa</h3>
+                        <div id="pending-friends-list" class="space-y-2"></div>
+                    </div>
+
+                    <!-- Confirmed Friends -->
+                    <div class="space-y-3">
+                        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">I Tuoi Amici</h3>
+                        <div id="friends-list" class="space-y-2">
+                            <div class="p-4 text-center text-xs text-slate-500">Caricamento amici...</div>
+                        </div>
+                    </div>
+
+                    <!-- Friend Routines Drawer -->
+                    <div id="friend-schede-drawer" class="hidden p-4 rounded-2xl bg-slate-900 border border-brand-500/50 space-y-3">
+                        <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                            <h4 id="friend-schede-title" class="font-bold text-sm text-brand-500">Schede Amico</h4>
+                            <button onclick="closeFriendSchedeDrawer()" class="text-xs text-red-400 font-bold">[Chiudi]</button>
+                        </div>
+                        <div id="friend-schede-list" class="space-y-2"></div>
+                    </div>
+                </div>
+            `;
+
+            loadFriendsData();
+        }
+
+        async function searchAndAddFriend() {
+            const input = document.getElementById('input-search-username');
+            const username = input.value.trim();
+            if (!username) return;
+
+            if (!supabaseClient || !currentUser) return;
+
+            const { data: profiles } = await supabaseClient
+                .from('profiles')
+                .select('*')
+                .eq('username', username);
+
+            if (!profiles || profiles.length === 0) {
+                showToast("Utente non trovato!");
+                return;
+            }
+
+            const target = profiles[0];
+            if (target.id === currentUser.id) {
+                showToast("Non puoi aggiungere te stesso!");
+                return;
+            }
+
+            const { error } = await supabaseClient
+                .from('friendships')
+                .insert([{ requester_id: currentUser.id, addressee_id: target.id, status: 'pending' }]);
+
+            if (error) {
+                showToast("Richiesta già inviata o esistente.");
+            } else {
+                showToast(`Richiesta inviata a ${target.username}!`);
+                input.value = '';
+            }
+        }
+
+        async function loadFriendsData() {
+            if (!supabaseClient || !currentUser) return;
+
+            // Load pending
+            const { data: pending } = await supabaseClient
+                .from('friendships')
+                .select('id, requester_id, profiles!friendships_requester_id_fkey(username)')
+                .eq('addressee_id', currentUser.id)
+                .eq('status', 'pending');
+
+            const pendingCont = document.getElementById('pending-friends-container');
+            const pendingList = document.getElementById('pending-friends-list');
+
+            if (pending && pending.length > 0) {
+                pendingCont.classList.remove('hidden');
+                pendingList.innerHTML = pending.map(p => `
+                    <div class="p-3 rounded-xl bg-slate-900 border border-amber-500/30 flex items-center justify-between text-xs">
+                        <span class="font-bold text-slate-200">${escapeHtml(p.profiles?.username || 'Utente')}</span>
+                        <div class="flex gap-2">
+                            <button onclick="respondFriend('${p.id}', 'accepted')" class="px-2.5 py-1 rounded-lg bg-brand-500 text-slate-950 font-bold">Accetta</button>
+                            <button onclick="respondFriend('${p.id}', 'rejected')" class="px-2.5 py-1 rounded-lg bg-red-600 text-white font-bold">Rifiuta</button>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                pendingCont.classList.add('hidden');
+            }
+
+            // Load friendships
+            const { data: friendships } = await supabaseClient
+                .from('friendships')
+                .select('id, requester_id, addressee_id')
+                .or(`requester_id.eq.${currentUser.id},addressee_id.eq.${currentUser.id}`)
+                .eq('status', 'accepted');
+
+            const friendIds = [];
+            if (friendships) {
+                friendships.forEach(f => {
+                    friendIds.push(f.requester_id === currentUser.id ? f.addressee_id : f.requester_id);
+                });
+            }
+
+            const friendsList = document.getElementById('friends-list');
+            if (friendIds.length === 0) {
+                friendsList.innerHTML = `<p class="text-xs text-slate-500 italic p-2">Nessun amico ancora aggiunto.</p>`;
+                return;
+            }
+
+            const { data: profiles } = await supabaseClient
+                .from('profiles')
+                .select('*')
+                .in('id', friendIds);
+
+            if (profiles) {
+                friendsList.innerHTML = profiles.map(fp => `
+                    <div class="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+                        <span class="font-bold text-sm text-white">${escapeHtml(fp.username)}</span>
+                        <button onclick="fetchFriendSchede('${fp.id}', '${escapeHtml(fp.username)}')" class="py-1.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-brand-500 font-bold text-xs flex items-center space-x-1">
+                            <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                            <span>Vedi Schede</span>
+                        </button>
+                    </div>
+                `).join('');
+                lucide.createIcons();
+            }
+        }
+
+        async function respondFriend(id, status) {
+            if (!supabaseClient) return;
+            if (status === 'accepted') {
+                await supabaseClient.from('friendships').update({ status: 'accepted' }).eq('id', id);
+            } else {
+                await supabaseClient.from('friendships').delete().eq('id', id);
+            }
+            loadFriendsData();
+        }
+
+        async function fetchFriendSchede(friendId, friendUsername) {
+            if (!supabaseClient) return;
+            const drawer = document.getElementById('friend-schede-drawer');
+            const title = document.getElementById('friend-schede-title');
+            const list = document.getElementById('friend-schede-list');
+
+            title.innerText = `Schede di ${friendUsername}`;
+            drawer.classList.remove('hidden');
+
+            const { data: schede } = await supabaseClient
+                .from('schede')
+                .select('*')
+                .eq('user_id', friendId);
+
+            if (!schede || schede.length === 0) {
+                list.innerHTML = `<p class="text-xs text-slate-500 italic">L'utente non ha schede pubbliche.</p>`;
+                return;
+            }
+
+            list.innerHTML = schede.map(s => {
+                const sObj = typeof s.content === 'string' ? JSON.parse(s.content) : s.content;
+                return `
+                    <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                        <div>
+                            <h5 class="font-bold text-xs text-white">${escapeHtml(sObj.title)}</h5>
+                            <span class="text-[10px] text-slate-400">${sObj.days.length} Giorni</span>
+                        </div>
+                        <button onclick='cloneFriendScheda(${JSON.stringify(sObj)})' class="py-1.5 px-3 rounded-xl bg-brand-500 text-slate-950 font-bold text-xs">
+                            Salva nelle mie Schede
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function closeFriendSchedeDrawer() {
+            document.getElementById('friend-schede-drawer').classList.add('hidden');
+        }
+
+        function cloneFriendScheda(schedaObj) {
+            const cloned = JSON.parse(JSON.stringify(schedaObj));
+            cloned.id = `scheda_${Date.now()}`;
+            cloned.title = `${cloned.title} (da Amico)`;
+
+            appState.schede.push(cloned);
+            saveToLocalStorage();
+            syncSchedeToCloud();
+            showToast("Scheda clonata con successo!");
+            closeFriendSchedeDrawer();
+            navigateTo('schede-list');
+        }
+
+        // =========================================================================
+        // VIEW: AUTHENTICATION
+        // =========================================================================
+        function renderAuthView(container, headerActions) {
+            headerActions.innerHTML = `
+                <button onclick="navigateTo('home')" class="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            `;
+
+            container.innerHTML = `
+                <div class="space-y-5 p-2">
+                    <div>
+                        <h2 id="auth-header-title" class="text-xl font-black text-white">${isSignUpMode ? 'Crea Account' : 'Accedi al Cloud'}</h2>
+                        <p class="text-xs text-slate-400">Sincronizza le tue schede e condividi con gli amici</p>
+                    </div>
+
+                    <form onsubmit="handleAuthSubmit(event)" class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+                        ${isSignUpMode ? `
+                            <div>
+                                <label class="text-xs font-semibold text-slate-400">Username</label>
+                                <input type="text" id="auth-username" required placeholder="Username" class="w-full mt-1 px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl font-bold text-xs text-white focus:border-brand-500 focus:outline-none" />
+                            </div>
+                        ` : ''}
+
+                        <div>
+                            <label class="text-xs font-semibold text-slate-400">Email</label>
+                            <input type="email" id="auth-email" required placeholder="user@domain.com" class="w-full mt-1 px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl font-bold text-xs text-white focus:border-brand-500 focus:outline-none" />
+                        </div>
+
+                        <div>
+                            <div class="flex items-center justify-between">
+                                <label class="text-xs font-semibold text-slate-400">Password</label>
+                                ${!isSignUpMode ? `
+                                    <button type="button" onclick="openForgotPasswordModal()" class="text-[11px] text-brand-500 hover:underline font-semibold">
+                                        Password dimenticata?
+                                    </button>
+                                ` : ''}
+                            </div>
+                            <input type="password" id="auth-password" required placeholder="••••••••" class="w-full mt-1 px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl font-bold text-xs text-white focus:border-brand-500 focus:outline-none" />
+                        </div>
+
+                        <div class="flex items-center space-x-2 pt-1">
+                            <input type="checkbox" id="auth-remember" checked class="accent-brand-500 rounded" />
+                            <label for="auth-remember" class="text-xs text-slate-300 font-medium">Ricorda su questo dispositivo</label>
+                        </div>
+
+                        <button type="submit" class="w-full py-3 rounded-2xl bg-brand-500 hover:bg-brand-600 text-slate-950 font-extrabold text-xs transition shadow-lg shadow-brand-500/20 mt-2">
+                            ${isSignUpMode ? 'REGISTRATI' : 'ACCEDI'}
+                        </button>
+                    </form>
+
+                    <div class="relative flex py-1 items-center">
+                        <div class="flex-grow border-t border-slate-800"></div>
+                        <span class="flex-shrink mx-3 text-[10px] text-slate-500 font-bold uppercase">Oppure</span>
+                        <div class="flex-grow border-t border-slate-800"></div>
+                    </div>
+
+                    <button onclick="loginGoogle()" class="w-full py-3 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-white font-bold text-xs flex items-center justify-center space-x-2 transition">
+                        <i data-lucide="chrome" class="w-4 h-4 text-brand-500"></i>
+                        <span>Accedi con Google</span>
+                    </button>
+
+                    <div class="text-center pt-2">
+                        <button onclick="toggleAuthMode()" class="text-xs text-brand-500 font-bold underline">
+                            ${isSignUpMode ? 'Hai già un account? Accedi' : 'Non hai un account? Registrati'}
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function toggleAuthMode() {
+            isSignUpMode = !isSignUpMode;
+            renderApp();
+        }
+
+        async function handleAuthSubmit(e) {
+            e.preventDefault();
+            if (!supabaseClient) {
+                openConfigModal();
+                return;
+            }
+
+            const email = document.getElementById('auth-email').value;
+            const password = document.getElementById('auth-password').value;
+            const username = isSignUpMode ? document.getElementById('auth-username').value : '';
+
+            try {
+                if (isSignUpMode) {
+                    const { data, error } = await supabaseClient.auth.signUp({
+                        email,
+                        password,
+                        options: { data: { username } }
+                    });
+                    if (error) throw error;
+                    if (data.user) {
+                        await supabaseClient.from('profiles').upsert({ id: data.user.id, email, username });
+                    }
+                    showToast("Registrazione completata!");
+                } else {
+                    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+                    if (error) throw error;
+                    showToast("Login effettuato!");
+                }
+                navigateTo('home');
+            } catch (err) {
+                showToast(err.message || "Errore autenticazione");
+            }
+        }
+
+        async function loginGoogle() {
+            if (!supabaseClient) return openConfigModal();
+            await supabaseClient.auth.signInWithOAuth({ provider: 'google' });
+        }
+
+        async function logoutSupabase() {
+            if (supabaseClient) await supabaseClient.auth.signOut();
+            currentUser = null;
+            currentProfile = null;
+            showToast("Logout effettuato!");
+            navigateTo('home');
+        }
+
+        function openForgotPasswordModal() {
+            const backdrop = document.getElementById('dynamic-modal-backdrop');
+            const content = document.getElementById('dynamic-modal-content');
+
+            content.innerHTML = `
+                <h3 class="text-lg font-bold text-white">Recupero Password</h3>
+                <p class="text-xs text-slate-400">Inserisci l'indirizzo email associato al tuo account per ricevere il link di reset.</p>
+
+                <div class="space-y-3 text-xs pt-1">
+                    <div>
+                        <label class="text-slate-400 font-semibold block mb-1">Email Account</label>
+                        <input id="reset-email" type="email" placeholder="user@domain.com" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white font-bold focus:border-brand-500 focus:outline-none" />
+                    </div>
+                </div>
+
+                <div class="flex items-center space-x-2 justify-end pt-3 border-t border-slate-800">
+                    <button onclick="document.getElementById('dynamic-modal-backdrop').classList.add('hidden')" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold">Annulla</button>
+                    <button onclick="sendPasswordResetEmail()" class="px-4 py-2 rounded-xl bg-brand-500 text-slate-950 text-xs font-bold">Invia Email</button>
+                </div>
+            `;
+            backdrop.classList.remove('hidden');
+        }
+
+        async function sendPasswordResetEmail() {
+            const email = document.getElementById('reset-email').value.trim();
+            if (!email) return showToast("Inserisci un'email valida!");
+            if (!supabaseClient) return openConfigModal();
+
+            const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+                redirectTo: window.location.href
+            });
+
+            document.getElementById('dynamic-modal-backdrop').classList.add('hidden');
+
+            if (error) {
+                showToast(error.message || "Errore durante l'invio del link.");
+            } else {
+                showToast("Email di reset inviata! Controlla la tua casella.");
+            }
+        }
+
+        function openConfigModal() {
+            const backdrop = document.getElementById('dynamic-modal-backdrop');
+            const content = document.getElementById('dynamic-modal-content');
+
+            content.innerHTML = `
+                <h3 class="text-lg font-bold text-white">Configurazione Supabase</h3>
+                <p class="text-xs text-slate-400">Inserisci URL e Anon Key del tuo database Supabase</p>
+
+                <div class="space-y-3 text-xs">
+                    <div>
+                        <label class="text-slate-400 font-semibold block mb-1">SUPABASE URL</label>
+                        <input id="cfg-url" type="text" value="${localStorage.getItem('gt_sb_url') || ''}" placeholder="https://xyz.supabase.co" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono" />
+                    </div>
+                    <div>
+                        <label class="text-slate-400 font-semibold block mb-1">SUPABASE ANON KEY</label>
+                        <input id="cfg-key" type="password" value="${localStorage.getItem('gt_sb_key') || ''}" placeholder="eyJhbGci..." class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono" />
+                    </div>
+                </div>
+
+                <div class="flex items-center space-x-2 justify-end pt-3 border-t border-slate-800">
+                    <button onclick="document.getElementById('dynamic-modal-backdrop').classList.add('hidden')" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold">Chiudi</button>
+                    <button onclick="saveSupabaseConfig()" class="px-4 py-2 rounded-xl bg-brand-500 text-slate-950 text-xs font-bold">Salva</button>
+                </div>
+            `;
+            backdrop.classList.remove('hidden');
+        }
+
+        function saveSupabaseConfig() {
+            const url = document.getElementById('cfg-url').value.trim();
+            const key = document.getElementById('cfg-key').value.trim();
+
+            localStorage.setItem('gt_sb_url', url);
+            localStorage.setItem('gt_sb_key', key);
+
+            document.getElementById('dynamic-modal-backdrop').classList.add('hidden');
+            initSupabase();
+            showToast("Configurazione salvata!");
+        }
 
         // =========================================================================
         // GENERIC EXERCISE EDITOR MODAL
@@ -1174,7 +1924,6 @@
             const content = document.getElementById('dynamic-modal-content');
 
             function renderModal() {
-                // Ensure array matches count
                 while (currentTargets.length < currentSetCount) currentTargets.push("10");
                 while (currentTargets.length > currentSetCount) currentTargets.pop();
 
@@ -1216,7 +1965,6 @@
                     </div>
                 `;
 
-                // Attach Listeners
                 document.getElementById('modal-ex-name').oninput = (e) => { nameVal = e.target.value; };
                 
                 document.querySelectorAll('.modal-target-input').forEach(inp => {
@@ -1260,7 +2008,6 @@
             renderModal();
             backdrop.classList.remove('hidden');
         }
-
 
         // =========================================================================
         // WORD (.DOCX) EXPORT IMPLEMENTATION
@@ -1379,7 +2126,6 @@
                 showToast("Errore nella creazione del file Word.");
             }
         }
-
 
         // =========================================================================
         // UTILS
