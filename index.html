@@ -216,10 +216,20 @@
             }
         }
 
+function getStorageKeys() {
+            const uid = currentUser ? currentUser.id : 'guest';
+            return {
+                schede: `gt_schede_v2_${uid}`,
+                routines: `gt_routines_v2_${uid}`,
+                lastScheda: `gt_last_scheda_id_${uid}`
+            };
+        }
+
         function loadFromLocalStorage() {
-            const savedSchede = localStorage.getItem('gt_schede_v2');
-            const savedRoutines = localStorage.getItem('gt_routines_v2');
-            const savedLastScheda = localStorage.getItem('gt_last_scheda_id');
+            const keys = getStorageKeys();
+            const savedSchede = localStorage.getItem(keys.schede);
+            const savedRoutines = localStorage.getItem(keys.routines);
+            const savedLastScheda = localStorage.getItem(keys.lastScheda);
 
             if (savedSchede) {
                 try { appState.schede = JSON.parse(savedSchede); } catch(e) { appState.schede = []; }
@@ -246,10 +256,11 @@
         }
 
         function saveToLocalStorage() {
-            localStorage.setItem('gt_schede_v2', JSON.stringify(appState.schede));
-            localStorage.setItem('gt_routines_v2', JSON.stringify(appState.routines));
+            const keys = getStorageKeys();
+            localStorage.setItem(keys.schede, JSON.stringify(appState.schede));
+            localStorage.setItem(keys.routines, JSON.stringify(appState.routines));
             if (appState.lastUsedSchedaId) {
-                localStorage.setItem('gt_last_scheda_id', appState.lastUsedSchedaId);
+                localStorage.setItem(keys.lastScheda, appState.lastUsedSchedaId);
             }
         }
 
@@ -2020,9 +2031,9 @@ async function updateProfileUsername() {
             if (supabaseClient) await supabaseClient.auth.signOut();
             currentUser = null;
             currentProfile = null;
-            showToast("Logout effettuato!");
+            loadFromLocalStorage(); // <-- RIPULISCE LO STATE CARICANDO I DATI GUEST 67
+            showToast("Logout effettuato 67!");
             navigateTo('home');
-        }
 
         function openForgotPasswordModal() {
             const backdrop = document.getElementById('dynamic-modal-backdrop');
