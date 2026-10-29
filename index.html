@@ -757,16 +757,23 @@ async function deleteUserAccount() {
 
             if (supabaseClient) {
                 try {
-                    await supabaseClient.from('profiles').delete().eq('id', currentUser.id);
-                    await supabaseClient.from('schede').delete().eq('user_id', currentUser.id);
-                    await supabaseClient.from('routines').delete().eq('user_id', currentUser.id);
+                    // Chiamo la funzione PostgreSQL con i permessi elevati per cancellare l'utente da auth.users
+                    const { error } = await supabaseClient.rpc('delete_own_user');
+                    
+                    if (error) {
+                        console.error("Errore eliminazione account da auth:", error);
+                        showToast("Errore durante l'eliminazione dell'account: " + error.message);
+                        return;
+                    }
+
+                    // Logout forzato dalla sessione Supabase
                     await supabaseClient.auth.signOut();
                 } catch(e) {
-                    console.warn("Errore pulizia cloud:", e);
+                    console.warn("Errore durante la pulizia cloud dell'account:", e);
                 }
             }
 
-            // Pulisci completamente il localStorage
+            // Pulisci completamente il localStorage del browser
             localStorage.clear();
 
             appState.schede = [];
@@ -774,7 +781,7 @@ async function deleteUserAccount() {
             currentUser = null;
             currentProfile = null;
 
-            showToast("Account eliminato e dati locali azzerati.");
+            showToast("Account ed email eliminati definitivamente!");
             navigateTo('auth');
         }
 
