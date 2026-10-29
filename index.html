@@ -151,11 +151,9 @@
     </div>
 
     <script>
-        // Clean state with zero pre-loaded default schede or sample routines
         const DEFAULT_SCHEDA = null;
         const INITIAL_ROUTINE_COMPLETED = null;
 
-        // Supabase & App State
         let supabaseClient = null;
         let currentUser = null;
         let currentProfile = null;
@@ -175,7 +173,6 @@
             deleteExerciseMode: false
         };
 
-        // Touch Swipe
         let touchStartX = 0;
         let touchEndX = 0;
 
@@ -459,7 +456,7 @@
                 return;
             }
 
-            const avatarUrl = currentProfile?.avatar_url || null;
+            const avatarUrl = currentProfile?.avatar_url || localStorage.getItem(`gt_avatar_${currentUser.id}`) || null;
             const username = currentProfile?.username || currentUser.email?.split('@')[0] || 'Atleta';
             const email = currentUser.email || '';
 
@@ -562,10 +559,18 @@
                                 <i data-lucide="chevron-right" class="w-4 h-4 text-slate-500"></i>
                             </button>
 
-                            <button onclick="logoutSupabase()" class="w-full p-3 rounded-xl bg-red-950/40 hover:bg-red-900/40 border border-red-900/40 text-left flex items-center justify-between text-xs text-red-400 transition">
+                            <button onclick="logoutSupabase()" class="w-full p-3 rounded-xl bg-slate-950 hover:bg-slate-800/80 border border-slate-800 text-left flex items-center justify-between text-xs text-slate-300 transition">
                                 <div class="flex items-center space-x-2">
-                                    <i data-lucide="log-out" class="w-4 h-4"></i>
+                                    <i data-lucide="log-out" class="w-4 h-4 text-amber-400"></i>
                                     <span>Disconnetti Account</span>
+                                </div>
+                                <i data-lucide="chevron-right" class="w-4 h-4 text-slate-500"></i>
+                            </button>
+
+                            <button onclick="confirmDeleteAccount()" class="w-full p-3 rounded-xl bg-red-950/40 hover:bg-red-900/40 border border-red-900/40 text-left flex items-center justify-between text-xs text-red-400 transition">
+                                <div class="flex items-center space-x-2">
+                                    <i data-lucide="user-x" class="w-4 h-4"></i>
+                                    <span>Elimina Definitivamente Account</span>
                                 </div>
                                 <i data-lucide="chevron-right" class="w-4 h-4 text-red-400"></i>
                             </button>
@@ -580,44 +585,62 @@
             if (!input.files || input.files.length === 0) return;
             const file = input.files[0];
 
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                const base64Url = e.target.result;
-                if (!supabaseClient || !currentUser) return;
+            // Ridimensiona immagine per rientrare nei limiti di memorizzazione
+            const img = new Image();
+            img.src = URL.createObjectURL(file);
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const maxDim = 150;
+                let w = img.width, h = img.height;
+                if (w > h) { if (w > maxDim) { h *= maxDim / w; w = maxDim; } }
+                else { if (h > maxDim) { w *= maxDim / h; h = maxDim; } }
+                canvas.width = w;
+                canvas.height = h;
+                ctx.drawImage(img, 0, 0, w, h);
+                const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
 
-                const { error } = await supabaseClient
-                    .from('profiles')
-                    .update({ avatar_url: base64Url })
-                    .eq('id', currentUser.id);
-
-                if (error) {
-                    showToast("Errore durante il caricamento avatar.");
-                } else {
-                    if (currentProfile) currentProfile.avatar_url = base64Url;
+                if (currentUser) {
+                    localStorage.setItem(`gt_avatar_${currentUser.id}`, compressedBase64);
+                    if (currentProfile) currentProfile.avatar_url = compressedBase64;
+                    
+                    if (supabaseClient) {
+                        supabaseClient
+                            .from('profiles')
+                            .update({ avatar_url: compressedBase64 })
+                            .eq('id', currentUser.id)
+                            .then(({ error }) => {
+                                if (error) console.warn("Errore sync avatar cloud:", error);
+                            });
+                    }
                     showToast("Foto profilo aggiornata!");
                     renderApp();
                 }
             };
-            reader.readAsDataURL(file);
         }
 
         async function updateProfileUsername() {
             const newUsername = document.getElementById('prof-username').value.trim();
             if (!newUsername) return showToast("Inserisci un username valido!");
-            if (!supabaseClient || !currentUser) return;
+            if (!currentUser) return;
 
-            const { error } = await supabaseClient
-                .from('profiles')
-                .update({ username: newUsername })
-                .eq('id', currentUser.id);
-
-            if (error) {
-                showToast("Errore aggiornamento username.");
-            } else {
-                if (currentProfile) currentProfile.username = newUsername;
-                showToast("Username aggiornato!");
-                renderApp();
+            if (currentProfile) {
+                currentProfile.username = newUsername;
             }
+
+            if (supabaseClient) {
+                const { error } = await supabaseClient
+                    .from('profiles')
+                    .upsert({ id: currentUser.id, email: currentUser.email, username: newUsername });
+
+                if (error) {
+                    showToast("Errore aggiornamento username cloud.");
+                    return;
+                }
+            }
+
+            showToast("Username aggiornato con successo!");
+            renderApp();
         }
 
         async function updateProfileEmail() {
@@ -645,6 +668,40 @@
                 showToast("Password aggiornata con successo!");
                 document.getElementById('prof-password').value = '';
             }
+        }
+
+        function confirmDeleteAccount() {
+            showModal("Elimina Account", "SEI SICURO? L'eliminazione cancellerà il tuo profilo e tutte le tue schede sia in locale che nel cloud in modo irreversibile.", async () => {
+                await deleteUserAccount();
+            });
+        }
+
+        async function deleteUserAccount() {
+            if (!currentUser) return;
+
+            if (supabaseClient) {
+                try {
+                    await supabaseClient.from('profiles').delete().eq('id', currentUser.id);
+                    await supabaseClient.from('schede').delete().eq('user_id', currentUser.id);
+                    await supabaseClient.from('routines').delete().eq('user_id', currentUser.id);
+                    await supabaseClient.auth.signOut();
+                } catch(e) {
+                    console.warn("Errore pulizia cloud:", e);
+                }
+            }
+
+            localStorage.removeItem(`gt_avatar_${currentUser.id}`);
+            localStorage.removeItem('gt_schede_v2');
+            localStorage.removeItem('gt_routines_v2');
+            localStorage.removeItem('gt_last_scheda_id');
+
+            appState.schede = [];
+            appState.routines = [];
+            currentUser = null;
+            currentProfile = null;
+
+            showToast("Account eliminato con successo.");
+            navigateTo('auth');
         }
 
         function renderHomeView(container, headerActions) {
@@ -1753,7 +1810,7 @@
                     if (data.user) {
                         await supabaseClient.from('profiles').upsert({ id: data.user.id, email, username });
                     }
-                    showToast("Registrazione completata!Controlla la tua email per verificare l'account.");
+                    showToast("Registrazione completata! Controlla la mail per verificare l'account.");
                 } else {
                     const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
                     if (error) throw error;
