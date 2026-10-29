@@ -311,10 +311,11 @@
             }
         }
 
-        async function syncDataFromCloud() {
+async function syncDataFromCloud() {
             if (!supabaseClient || !currentUser) return;
             
-            const { data: cloudSchede } = await supabaseClient
+            // 1. Sincronizzazione Schede
+            const { data: cloudSchede, error: errSch } = await supabaseClient
                 .from('schede')
                 .select('*')
                 .eq('user_id', currentUser.id);
@@ -322,11 +323,13 @@
             if (cloudSchede && cloudSchede.length > 0) {
                 appState.schede = cloudSchede.map(s => typeof s.content === 'string' ? JSON.parse(s.content) : s.content);
                 saveToLocalStorage();
-            } else {
+            } else if (appState.schede.length > 0) {
+                // Se il cloud è vuoto ma il dispositivo ha schede, le carichiamo sul cloud!
                 await syncSchedeToCloud();
             }
 
-            const { data: cloudRoutines } = await supabaseClient
+            // 2. Sincronizzazione Routine
+            const { data: cloudRoutines, error: errRout } = await supabaseClient
                 .from('routines')
                 .select('*')
                 .eq('user_id', currentUser.id);
@@ -334,34 +337,41 @@
             if (cloudRoutines && cloudRoutines.length > 0) {
                 appState.routines = cloudRoutines.map(r => typeof r.content === 'string' ? JSON.parse(r.content) : r.content);
                 saveToLocalStorage();
-            } else {
+            } else if (appState.routines.length > 0) {
+                // Se il cloud è vuoto ma il dispositivo ha routine, le carichiamo sul cloud!
                 await syncRoutinesToCloud();
             }
 
+            // 3. Sincronizzazione Profilo / Avatar
+            await fetchUserProfile();
+
             renderApp();
+            showToast("Sincronizzazione cloud completata!");
         }
 
         async function syncSchedeToCloud() {
             if (!supabaseClient || !currentUser) return;
             for (let s of appState.schede) {
-                await supabaseClient.from('schede').upsert({
+                const { error } = await supabaseClient.from('schede').upsert({
                     id: s.id,
                     user_id: currentUser.id,
                     title: s.title,
                     content: s
                 });
+                if (error) console.error("Errore sync scheda cloud:", error);
             }
         }
 
         async function syncRoutinesToCloud() {
             if (!supabaseClient || !currentUser) return;
             for (let r of appState.routines) {
-                await supabaseClient.from('routines').upsert({
+                const { error } = await supabaseClient.from('routines').upsert({
                     id: r.id,
                     user_id: currentUser.id,
                     title: r.title,
                     content: r
                 });
+                if (error) console.error("Errore sync routine cloud:", error);
             }
         }
 
