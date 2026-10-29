@@ -1877,7 +1877,7 @@ async function updateProfileUsername() {
                     if (data.user) {
                         await supabaseClient.from('profiles').upsert({ id: data.user.id, email, username });
                     }
-                    showToast("Registrazione completata! Controlla la mail per verificare l'account.");
+                    showToast("Registrazione completata! Accedi!");
                 } else {
                     const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
                     if (error) throw error;
