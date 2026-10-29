@@ -165,12 +165,11 @@
             schede: [],
             routines: [],
             lastUsedSchedaId: null,
-            currentView: 'home', // 'home', 'routine-detail', 'archive', 'schede-list', 'scheda-builder', 'scheda-select', 'friends', 'auth', 'profile'
+            currentView: 'home',
             currentRoutineId: null,
             currentDayIndex: 0,
             archiveSortOrder: 'desc',
             
-            // Temporary builder state for creating/editing a Scheda
             builderScheda: null,
             builderCurrentDay: 0,
             deleteExerciseMode: false
@@ -203,7 +202,6 @@
 
             if (!btnHome || !btnFriends || !btnProfile) return;
 
-            // Reset styles
             [btnHome, btnFriends, btnProfile].forEach(btn => {
                 btn.className = "flex flex-col items-center justify-center space-y-1 text-slate-400 hover:text-brand-500 transition";
             });
@@ -318,7 +316,6 @@
         async function syncDataFromCloud() {
             if (!supabaseClient || !currentUser) return;
             
-            // Sync Schede
             const { data: cloudSchede } = await supabaseClient
                 .from('schede')
                 .select('*')
@@ -331,7 +328,6 @@
                 await syncSchedeToCloud();
             }
 
-            // Sync Routines
             const { data: cloudRoutines } = await supabaseClient
                 .from('routines')
                 .select('*')
@@ -451,9 +447,6 @@
             lucide.createIcons();
         }
 
-        // =========================================================================
-        // VIEW: PROFILE MANAGEMENT (AVATAR, DATI PERSONALI, STATS & SETTINGS)
-        // =========================================================================
         function renderProfileView(container, headerActions) {
             headerActions.innerHTML = `
                 <button onclick="navigateTo('home')" class="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition">
@@ -470,7 +463,6 @@
             const username = currentProfile?.username || currentUser.email?.split('@')[0] || 'Atleta';
             const email = currentUser.email || '';
 
-            // Stats calculations
             const totalWorkouts = appState.routines.length;
             const completedWorkouts = appState.routines.filter(r => isRoutineComplete(r)).length;
             const totalSchede = appState.schede.length;
@@ -478,7 +470,6 @@
             container.innerHTML = `
                 <div class="space-y-5 animate-fade-in pb-12">
                     
-                    <!-- Avatar & Header Badge -->
                     <div class="p-5 rounded-3xl bg-slate-900 border border-slate-800 flex flex-col items-center justify-center space-y-3 relative overflow-hidden shadow-xl">
                         <div class="relative group cursor-pointer" onclick="document.getElementById('avatar-file-input').click()">
                             <div class="w-20 h-20 rounded-full overflow-hidden bg-brand-500/20 border-2 border-brand-500 flex items-center justify-center text-brand-500 font-black text-2xl shadow-lg shadow-brand-500/20">
@@ -500,7 +491,6 @@
                         </span>
                     </div>
 
-                    <!-- Quick Stats Bar -->
                     <div class="grid grid-cols-3 gap-2">
                         <div class="p-3 rounded-2xl bg-slate-900 border border-slate-800 text-center">
                             <span class="block font-black text-lg text-brand-500">${totalWorkouts}</span>
@@ -516,7 +506,6 @@
                         </div>
                     </div>
 
-                    <!-- Edit Profile Credentials -->
                     <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
                         <h3 class="text-xs font-bold text-brand-500 uppercase tracking-wider flex items-center gap-1.5">
                             <i data-lucide="user-check" class="w-4 h-4"></i>
@@ -550,7 +539,6 @@
                         </div>
                     </div>
 
-                    <!-- App & Database Settings -->
                     <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
                         <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
                             <i data-lucide="settings" class="w-4 h-4"></i>
@@ -659,9 +647,6 @@
             }
         }
 
-        // =========================================================================
-        // VIEW: HOME SCREEN
-        // =========================================================================
         function renderHomeView(container, headerActions) {
             headerActions.innerHTML = `
                 ${currentUser ? `
@@ -806,9 +791,6 @@
             navigateTo('home');
         }
 
-        // =========================================================================
-        // VIEW: SCHEDA SELECT (SELEZIONE SCHEDA PER NUOVA ROUTINE)
-        // =========================================================================
         function renderSchedaSelectView(container, headerActions) {
             headerActions.innerHTML = `
                 <button onclick="navigateTo('home')" class="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition">
@@ -877,9 +859,6 @@
             navigateTo('routine-detail', { routineId: newRoutine.id, dayIndex: 0 });
         }
 
-        // =========================================================================
-        // VIEW: SCHEDE LIST (GESTIONE SCHEDE)
-        // =========================================================================
         function renderSchedeListView(container, headerActions) {
             headerActions.innerHTML = `
                 <button onclick="navigateTo('home')" class="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition">
@@ -946,9 +925,6 @@
             });
         }
 
-        // =========================================================================
-        // VIEW: SCHEDA BUILDER / EDITOR
-        // =========================================================================
         function startSchedaBuilder(schedaToEdit = null) {
             if (schedaToEdit) {
                 appState.builderScheda = JSON.parse(JSON.stringify(schedaToEdit));
@@ -1147,9 +1123,6 @@
             });
         }
 
-        // =========================================================================
-        // VIEW: ROUTINE DETAIL (ACTIVE OR ARCHIVED ROUTINE)
-        // =========================================================================
         function renderRoutineDetailView(container, headerActions) {
             const routine = appState.routines.find(r => r.id === appState.currentRoutineId) || appState.routines[0];
             if (!routine) {
@@ -1401,9 +1374,6 @@
             });
         }
 
-        // =========================================================================
-        // VIEW: ARCHIVIO (STORICO ROUTINE)
-        // =========================================================================
         function renderArchiveView(container, headerActions) {
             headerActions.innerHTML = `
                 <button onclick="navigateTo('home')" class="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition">
@@ -1473,9 +1443,6 @@
             renderApp();
         }
 
-        // =========================================================================
-        // VIEW: AMICI & COMMUNITY
-        // =========================================================================
         function renderFriendsView(container, headerActions) {
             headerActions.innerHTML = `
                 <button onclick="navigateTo('home')" class="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition">
@@ -1504,7 +1471,6 @@
                         <p class="text-xs text-slate-400">Cerca utenti e naviga tra le loro schede</p>
                     </div>
 
-                    <!-- Search Friend -->
                     <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
                         <label class="text-xs font-bold text-brand-500 block">Cerca Utente per Username</label>
                         <div class="flex gap-2">
@@ -1515,13 +1481,11 @@
                         </div>
                     </div>
 
-                    <!-- Pending Requests -->
                     <div id="pending-friends-container" class="space-y-2 hidden">
                         <h3 class="text-xs font-bold text-amber-400 uppercase tracking-wider">Richieste in Attesa</h3>
                         <div id="pending-friends-list" class="space-y-2"></div>
                     </div>
 
-                    <!-- Confirmed Friends -->
                     <div class="space-y-3">
                         <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">I Tuoi Amici</h3>
                         <div id="friends-list" class="space-y-2">
@@ -1529,7 +1493,6 @@
                         </div>
                     </div>
 
-                    <!-- Friend Routines Drawer -->
                     <div id="friend-schede-drawer" class="hidden p-4 rounded-2xl bg-slate-900 border border-brand-500/50 space-y-3">
                         <div class="flex justify-between items-center border-b border-slate-800 pb-2">
                             <h4 id="friend-schede-title" class="font-bold text-sm text-brand-500">Schede Amico</h4>
@@ -1581,7 +1544,6 @@
         async function loadFriendsData() {
             if (!supabaseClient || !currentUser) return;
 
-            // Load pending
             const { data: pending } = await supabaseClient
                 .from('friendships')
                 .select('id, requester_id, profiles!friendships_requester_id_fkey(username)')
@@ -1606,7 +1568,6 @@
                 pendingCont.classList.add('hidden');
             }
 
-            // Load friendships
             const { data: friendships } = await supabaseClient
                 .from('friendships')
                 .select('id, requester_id, addressee_id')
@@ -1707,9 +1668,6 @@
             navigateTo('schede-list');
         }
 
-        // =========================================================================
-        // VIEW: AUTHENTICATION
-        // =========================================================================
         function renderAuthView(container, headerActions) {
             headerActions.innerHTML = `
                 <button onclick="navigateTo('home')" class="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition">
@@ -1759,17 +1717,6 @@
                         </button>
                     </form>
 
-                    <div class="relative flex py-1 items-center">
-                        <div class="flex-grow border-t border-slate-800"></div>
-                        <span class="flex-shrink mx-3 text-[10px] text-slate-500 font-bold uppercase">Oppure</span>
-                        <div class="flex-grow border-t border-slate-800"></div>
-                    </div>
-
-                    <button onclick="loginGoogle()" class="w-full py-3 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-white font-bold text-xs flex items-center justify-center space-x-2 transition">
-                        <i data-lucide="chrome" class="w-4 h-4 text-brand-500"></i>
-                        <span>Accedi con Google</span>
-                    </button>
-
                     <div class="text-center pt-2">
                         <button onclick="toggleAuthMode()" class="text-xs text-brand-500 font-bold underline">
                             ${isSignUpMode ? 'Hai già un account? Accedi' : 'Non hai un account? Registrati'}
@@ -1816,11 +1763,6 @@
             } catch (err) {
                 showToast(err.message || "Errore autenticazione");
             }
-        }
-
-        async function loginGoogle() {
-            if (!supabaseClient) return openConfigModal();
-            await supabaseClient.auth.signInWithOAuth({ provider: 'google' });
         }
 
         async function logoutSupabase() {
@@ -1911,9 +1853,6 @@
             showToast("Configurazione salvata!");
         }
 
-        // =========================================================================
-        // GENERIC EXERCISE EDITOR MODAL
-        // =========================================================================
         function openExerciseEditorModal(existingExercise, onSaveCallback) {
             const isEdit = !!existingExercise;
             let currentSetCount = isEdit ? existingExercise.target.length : 3;
@@ -2009,9 +1948,6 @@
             backdrop.classList.remove('hidden');
         }
 
-        // =========================================================================
-        // WORD (.DOCX) EXPORT IMPLEMENTATION
-        // =========================================================================
         function downloadDocx(routineId) {
             const routine = appState.routines.find(r => r.id === routineId);
             if (!routine) return;
@@ -2127,9 +2063,6 @@
             }
         }
 
-        // =========================================================================
-        // UTILS
-        // =========================================================================
         function showToast(msg) {
             const toast = document.getElementById('toast');
             const toastMsg = document.getElementById('toast-message');
