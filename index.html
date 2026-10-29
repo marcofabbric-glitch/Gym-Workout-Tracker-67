@@ -1753,7 +1753,7 @@
                     if (data.user) {
                         await supabaseClient.from('profiles').upsert({ id: data.user.id, email, username });
                     }
-                    showToast("Registrazione completata!");
+                    showToast("Registrazione completata!Controlla la tua email per verificare l'account.");
                 } else {
                     const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
                     if (error) throw error;
