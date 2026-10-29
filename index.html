@@ -253,11 +253,12 @@
             }
         }
 
-        function initSupabase() {
-            const url = localStorage.getItem('gt_sb_url');
-            const key = localStorage.getItem('gt_sb_key');
+function initSupabase() {
+            // Credenziali fisse cablate: funzionerà subito per chiunque apra il link!
+            const url = "https://cbaortznsaewspofazyr.supabase.co";
+            const key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNiYW9ydHpuc2Fld3Nwb2ZhenlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMyMjg1OTIsImV4cCI6MjEwODgwNDU5Mn0.ocXjIteI_YENslMRkVVChtG0rMiWUZVCC8ZD9aqrTeY"; // es. la tua stringa eyJhbGci... o sb_publishable_...
 
-            if (url && key && window.supabase) {
+            if (window.supabase) {
                 try {
                     supabaseClient = window.supabase.createClient(url, key);
                     checkSupabaseSession();
