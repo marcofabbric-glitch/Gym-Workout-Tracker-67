@@ -91,13 +91,19 @@
         
         <!-- HEADER -->
         <header class="sticky top-0 z-30 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex items-center justify-between">
-            <div class="flex items-center space-x-2 cursor-pointer" onclick="navigateTo('home')">
-                <div class="p-2 bg-gradient-to-tr from-brand-600 to-emerald-400 rounded-xl text-slate-950 font-black shadow-lg shadow-brand-500/20">
-                    <i data-lucide="dumbbell" class="w-5 h-5"></i>
-                </div>
-                <div>
-                    <h1 class="font-black tracking-tight text-lg text-white leading-none">GYM<span class="text-brand-500">TRACK</span></h1>
-                    <span class="text-[10px] text-slate-400 font-medium tracking-wider uppercase">Schede & Social</span>
+            <div class="flex items-center space-x-2">
+                <!-- Back Button -->
+                <button id="header-back-btn" onclick="navigateBack()" class="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition hidden" title="Indietro">
+                    <i data-lucide="arrow-left" class="w-5 h-5"></i>
+                </button>
+                <div class="flex items-center space-x-2 cursor-pointer" onclick="navigateTo('home')">
+                    <div class="p-2 bg-gradient-to-tr from-brand-600 to-emerald-400 rounded-xl text-slate-950 font-black shadow-lg shadow-brand-500/20">
+                        <i data-lucide="dumbbell" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-black tracking-tight text-lg text-white leading-none">GYM<span class="text-brand-500">TRACK</span></h1>
+                        <span class="text-[10px] text-slate-400 font-medium tracking-wider uppercase">Schede & Social</span>
+                    </div>
                 </div>
             </div>
             <div id="header-actions" class="flex items-center space-x-2"></div>
@@ -137,8 +143,11 @@
                 <span class="text-[10px] font-bold">Home</span>
             </button>
             
-            <button onclick="navigateTo('friends')" id="nav-btn-friends" class="flex flex-col items-center justify-center space-y-1 text-slate-400 hover:text-brand-500 transition">
-                <i data-lucide="users" class="w-5 h-5"></i>
+            <button onclick="navigateTo('friends')" id="nav-btn-friends" class="flex flex-col items-center justify-center space-y-1 text-slate-400 hover:text-brand-500 transition relative">
+                <div class="relative">
+                    <i data-lucide="users" class="w-5 h-5"></i>
+                    <span id="friends-badge" class="absolute -top-1.5 -right-2.5 bg-red-500 text-white font-extrabold text-[9px] w-4 h-4 rounded-full flex items-center justify-center border-2 border-slate-900 hidden">0</span>
+                </div>
                 <span class="text-[10px] font-bold">Amici</span>
             </button>
             
@@ -158,6 +167,9 @@
         let currentUser = null;
         let currentProfile = null;
         let isSignUpMode = false;
+        let pendingRequestsCount = 0;
+
+        let navigationHistory = [];
 
         let appState = {
             schede: [],
@@ -167,6 +179,11 @@
             currentRoutineId: null,
             currentDayIndex: 0,
             archiveSortOrder: 'desc',
+            selectedFriendId: null,
+            selectedFriendProfile: null,
+            selectedSchedaView: null,
+            selectedRoutineView: null,
+            isFriendSchedaView: false,
             
             builderScheda: null,
             builderCurrentDay: 0,
@@ -200,7 +217,7 @@
             if (!btnHome || !btnFriends || !btnProfile) return;
 
             [btnHome, btnFriends, btnProfile].forEach(btn => {
-                btn.className = "flex flex-col items-center justify-center space-y-1 text-slate-400 hover:text-brand-500 transition";
+                btn.className = "flex flex-col items-center justify-center space-y-1 text-slate-400 hover:text-brand-500 transition relative";
             });
 
             if (labelProfile) {
@@ -208,11 +225,22 @@
             }
 
             if (appState.currentView === 'home') {
-                btnHome.className = "flex flex-col items-center justify-center space-y-1 text-brand-500 transition scale-105 font-bold";
-            } else if (appState.currentView === 'friends') {
-                btnFriends.className = "flex flex-col items-center justify-center space-y-1 text-brand-500 transition scale-105 font-bold";
+                btnHome.className = "flex flex-col items-center justify-center space-y-1 text-brand-500 transition scale-105 font-bold relative";
+            } else if (appState.currentView === 'friends' || appState.currentView === 'friend-profile') {
+                btnFriends.className = "flex flex-col items-center justify-center space-y-1 text-brand-500 transition scale-105 font-bold relative";
             } else if (appState.currentView === 'auth' || appState.currentView === 'profile') {
-                btnProfile.className = "flex flex-col items-center justify-center space-y-1 text-brand-500 transition scale-105 font-bold";
+                btnProfile.className = "flex flex-col items-center justify-center space-y-1 text-brand-500 transition scale-105 font-bold relative";
+            }
+        }
+
+        function updateFriendsBadge() {
+            const badge = document.getElementById('friends-badge');
+            if (!badge) return;
+            if (pendingRequestsCount > 0) {
+                badge.textContent = pendingRequestsCount > 9 ? '9+' : pendingRequestsCount;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
             }
         }
 
@@ -254,7 +282,6 @@
         }
 
         function initSupabase() {
-            // Credenziali hardcoded fisse: niente più richieste manuali su nessun dispositivo!
             const url = "https://cbaortznsaewspofazyr.supabase.co";
             const key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNiYW9ydHpuc2Fld3Nwb2ZhenlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMyMjg1OTIsImV4cCI6MjEwODgwNDU5Mn0.ocXjIteI_YENslMRkVVChtG0rMiWUZVCC8ZD9aqrTeY"; 
 
@@ -275,6 +302,7 @@
                 currentUser = session.user;
                 await ensureUserProfileExists();
                 await syncDataFromCloud();
+                await checkPendingFriendRequests();
             }
 
             supabaseClient.auth.onAuthStateChange(async (event, session) => {
@@ -282,17 +310,34 @@
                     currentUser = session.user;
                     await ensureUserProfileExists();
                     await syncDataFromCloud();
+                    await checkPendingFriendRequests();
                 } else {
                     currentUser = null;
                     currentProfile = null;
+                    pendingRequestsCount = 0;
+                    updateFriendsBadge();
                 }
                 renderApp();
             });
         }
 
-        async function fetchUserProfile() {
+        async function checkPendingFriendRequests() {
             if (!supabaseClient || !currentUser) return;
             const { data, error } = await supabaseClient
+                .from('friendships')
+                .select('id')
+                .eq('addressee_id', currentUser.id)
+                .eq('status', 'pending');
+
+            if (data) {
+                pendingRequestsCount = data.length;
+                updateFriendsBadge();
+            }
+        }
+
+        async function fetchUserProfile() {
+            if (!supabaseClient || !currentUser) return;
+            const { data } = await supabaseClient
                 .from('profiles')
                 .select('*')
                 .eq('id', currentUser.id)
@@ -350,8 +395,7 @@
         async function syncDataFromCloud() {
             if (!supabaseClient || !currentUser) return;
             
-            // 1. Sincronizzazione Schede
-            const { data: cloudSchede, error: errSch } = await supabaseClient
+            const { data: cloudSchede } = await supabaseClient
                 .from('schede')
                 .select('*')
                 .eq('user_id', currentUser.id);
@@ -363,8 +407,7 @@
                 await syncSchedeToCloud();
             }
 
-            // 2. Sincronizzazione Routine
-            const { data: cloudRoutines, error: errRout } = await supabaseClient
+            const { data: cloudRoutines } = await supabaseClient
                 .from('routines')
                 .select('*')
                 .eq('user_id', currentUser.id);
@@ -376,9 +419,7 @@
                 await syncRoutinesToCloud();
             }
 
-            // 3. Sincronizzazione Profilo / Avatar
             await fetchUserProfile();
-
             renderApp();
             showToast("Sincronizzazione cloud completata!");
         }
@@ -453,11 +494,69 @@
         }
 
         function navigateTo(view, params = {}) {
+            if (appState.currentView && appState.currentView !== view) {
+                navigationHistory.push({
+                    view: appState.currentView,
+                    routineId: appState.currentRoutineId,
+                    dayIndex: appState.currentDayIndex,
+                    friendId: appState.selectedFriendId,
+                    friendProfile: appState.selectedFriendProfile
+                });
+            }
+
+            if (view === 'home') {
+                navigationHistory = [];
+            }
+
             appState.currentView = view;
             if (params.routineId) appState.currentRoutineId = params.routineId;
             if (params.dayIndex !== undefined) appState.currentDayIndex = params.dayIndex;
+            if (params.friendId) appState.selectedFriendId = params.friendId;
+            if (params.friendProfile) appState.selectedFriendProfile = params.friendProfile;
+
             renderApp();
             window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function navigateBack() {
+            if (navigationHistory.length === 0) {
+                appState.currentView = 'home';
+                renderApp();
+                return;
+            }
+
+            const lastState = navigationHistory.pop();
+            appState.currentView = lastState.view;
+            if (lastState.routineId) appState.currentRoutineId = lastState.routineId;
+            if (lastState.dayIndex !== undefined) appState.currentDayIndex = lastState.dayIndex;
+            if (lastState.friendId) appState.selectedFriendId = lastState.friendId;
+            if (lastState.friendProfile) appState.selectedFriendProfile = lastState.friendProfile;
+
+            renderApp();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function updateHeaderBackButton() {
+            const backBtn = document.getElementById('header-back-btn');
+            if (!backBtn) return;
+            if (appState.currentView !== 'home') {
+                backBtn.classList.remove('hidden');
+            } else {
+                backBtn.classList.add('hidden');
+            }
+        }
+
+        function renderAvatarHtml(avatarUrl, username, extraClasses = "w-8 h-8 font-bold text-xs") {
+            const initial = (username || 'U')[0].toUpperCase();
+            if (avatarUrl) {
+                return `<div class="${extraClasses} rounded-full overflow-hidden bg-brand-500/20 text-brand-500 flex items-center justify-center border border-brand-500/30 flex-shrink-0">
+                    <img src="${escapeHtml(avatarUrl)}" class="w-full h-full object-cover" onerror="this.onerror=null; this.parentElement.innerHTML='${initial}';" />
+                </div>`;
+            } else {
+                return `<div class="${extraClasses} rounded-full overflow-hidden bg-brand-500/20 text-brand-500 flex items-center justify-center border border-brand-500/30 flex-shrink-0">
+                    ${initial}
+                </div>`;
+            }
         }
 
         function renderApp() {
@@ -469,6 +568,8 @@
             mainContent.innerHTML = '';
             headerActions.innerHTML = '';
 
+            updateHeaderBackButton();
+
             switch (appState.currentView) {
                 case 'home':
                     renderHomeView(mainContent, headerActions);
@@ -478,6 +579,12 @@
                     break;
                 case 'schede-list':
                     renderSchedeListView(mainContent, headerActions);
+                    break;
+                case 'scheda-detail-view':
+                    renderSchedaDetailFullscreenView(mainContent, headerActions);
+                    break;
+                case 'friend-routine-detail-view':
+                    renderFriendRoutineDetailFullscreenView(mainContent, headerActions);
                     break;
                 case 'scheda-builder':
                     renderSchedaBuilderView(mainContent, headerActions);
@@ -491,6 +598,9 @@
                 case 'friends':
                     renderFriendsView(mainContent, headerActions);
                     break;
+                case 'friend-profile':
+                    renderFriendProfileView(mainContent, headerActions);
+                    break;
                 case 'auth':
                     renderAuthView(mainContent, headerActions);
                     break;
@@ -500,9 +610,13 @@
             }
 
             updateBottomNavActiveState();
+            updateFriendsBadge();
             lucide.createIcons();
         }
 
+        // =========================================================================
+        // VIEW: PROFILE VIEW
+        // =========================================================================
         function renderProfileView(container, headerActions) {
             headerActions.innerHTML = `
                 <button onclick="navigateTo('home')" class="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition">
@@ -757,23 +871,18 @@
 
             if (supabaseClient) {
                 try {
-                    // Chiamo la funzione PostgreSQL con i permessi elevati per cancellare l'utente da auth.users
                     const { error } = await supabaseClient.rpc('delete_own_user');
-                    
                     if (error) {
                         console.error("Errore eliminazione account da auth:", error);
                         showToast("Errore durante l'eliminazione dell'account: " + error.message);
                         return;
                     }
-
-                    // Logout forzato dalla sessione Supabase
                     await supabaseClient.auth.signOut();
                 } catch(e) {
                     console.warn("Errore durante la pulizia cloud dell'account:", e);
                 }
             }
 
-            // Pulisci completamente il localStorage del browser
             localStorage.clear();
 
             appState.schede = [];
@@ -785,6 +894,9 @@
             navigateTo('auth');
         }
 
+        // =========================================================================
+        // VIEW: HOME SCREEN
+        // =========================================================================
         function renderHomeView(container, headerActions) {
             headerActions.innerHTML = `
                 ${currentUser ? `
@@ -810,9 +922,7 @@
                     ${currentUser ? `
                         <div class="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-between">
                             <div class="flex items-center space-x-2.5">
-                                <div class="w-8 h-8 rounded-full overflow-hidden bg-brand-500/20 text-brand-500 flex items-center justify-center font-bold text-xs border border-brand-500/30">
-                                    ${avatarUrl ? `<img src="${escapeHtml(avatarUrl)}" class="w-full h-full object-cover" />` : username[0].toUpperCase()}
-                                </div>
+                                ${renderAvatarHtml(avatarUrl, username, "w-8 h-8 font-bold text-xs")}
                                 <div>
                                     <h4 class="font-bold text-xs text-white">${escapeHtml(username)}</h4>
                                     <span class="text-[10px] text-brand-500 font-mono">Cloud Sync Attivo</span>
@@ -944,6 +1054,9 @@
             navigateTo('home');
         }
 
+        // =========================================================================
+        // VIEW: SCHEDA SELECT (SELEZIONE SCHEDA PER NUOVA ROUTINE)
+        // =========================================================================
         function renderSchedaSelectView(container, headerActions) {
             headerActions.innerHTML = `
                 <button onclick="navigateTo('home')" class="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition">
@@ -1029,6 +1142,306 @@
             navigateTo('routine-detail', { routineId: newRoutine.id, dayIndex: 0 });
         }
 
+        // =========================================================================
+        // VIEW: SCHEDA DETAIL FULLSCREEN (VISUALIZZAZIONE SCHEDA)
+        // =========================================================================
+        function viewSchedaFullscreen(scheda, isFriend = false) {
+            appState.selectedSchedaView = scheda;
+            appState.isFriendSchedaView = isFriend;
+            appState.currentDayIndex = 0;
+            navigateTo('scheda-detail-view');
+        }
+
+        function renderSchedaDetailFullscreenView(container, headerActions) {
+            const scheda = appState.selectedSchedaView;
+            if (!scheda) {
+                navigateTo('schede-list');
+                return;
+            }
+
+            headerActions.innerHTML = `
+                ${appState.isFriendSchedaView ? `
+                    <button onclick='cloneFriendScheda(${JSON.stringify(scheda)})' class="py-1.5 px-3 rounded-xl bg-brand-500 hover:bg-brand-600 text-slate-950 font-extrabold text-xs flex items-center gap-1 shadow-lg shadow-brand-500/20 transition">
+                        <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                        <span>Clona</span>
+                    </button>
+                ` : `
+                    <button onclick="editScheda('${scheda.id}')" class="p-2 rounded-xl bg-slate-800 text-brand-500 hover:bg-slate-700 transition" title="Modifica Scheda">
+                        <i data-lucide="edit-3" class="w-4 h-4"></i>
+                    </button>
+                `}
+                <button onclick="navigateTo('home')" title="Home" class="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition">
+                    <i data-lucide="home" class="w-4 h-4"></i>
+                </button>
+            `;
+
+            const currentDay = scheda.days[appState.currentDayIndex] || scheda.days[0];
+
+            container.innerHTML = `
+                <div class="space-y-4 select-none">
+                    
+                    <div class="space-y-3">
+                        <div class="text-center px-2">
+                            <h2 class="font-black text-xl text-white truncate">${escapeHtml(scheda.title)}</h2>
+                            <span class="text-[11px] text-brand-500 font-bold uppercase tracking-wider block mt-0.5">
+                                ${appState.isFriendSchedaView ? 'Scheda Amico (Solo Lettura)' : 'Modello Scheda Personalizzata'}
+                            </span>
+                        </div>
+
+                        <!-- Switch Giorni -->
+                        <div class="flex overflow-x-auto gap-1 bg-slate-900 p-1 rounded-2xl border border-slate-800">
+                            ${scheda.days.map((day, idx) => {
+                                const active = idx === appState.currentDayIndex;
+                                return `
+                                    <button onclick="switchDay(${idx})" class="flex-1 min-w-[60px] py-2 px-1 rounded-xl font-bold text-xs transition flex flex-col items-center justify-center space-y-0.5 ${active ? 'bg-brand-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'}">
+                                        <span>G${idx+1}</span>
+                                        <span class="w-1.5 h-1.5 rounded-full ${active ? 'bg-slate-950' : 'bg-slate-700'}"></span>
+                                    </button>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between px-1">
+                            <h3 class="font-extrabold text-white text-base flex items-center space-x-2">
+                                <span class="w-2 h-4 bg-brand-500 rounded-full"></span>
+                                <span>${escapeHtml(currentDay.name)}</span>
+                            </h3>
+                            <span class="text-xs text-slate-400 font-mono">${currentDay.exercises.length} Esercizi</span>
+                        </div>
+
+                        ${currentDay.exercises.length === 0 ? `
+                            <div class="p-6 text-center rounded-2xl bg-slate-900/40 border border-dashed border-slate-800 text-xs text-slate-500">
+                                Nessun esercizio inserito in questo giorno.
+                            </div>
+                        ` : ''}
+
+                        ${currentDay.exercises.map((ex) => `
+                            <div class="p-4 rounded-2xl bg-slate-900 border ${ex.isSuperset ? 'border-brand-500/40' : 'border-slate-800'} shadow-md space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center space-x-2">
+                                        <h4 class="font-bold text-sm text-slate-100 tracking-wide">${escapeHtml(ex.isSuperset ? (ex.name || 'SUPERSERIE') : ex.name)}</h4>
+                                        ${ex.isSuperset ? '<span class="px-2 py-0.5 rounded bg-brand-500/20 text-brand-500 font-extrabold text-[10px]">SUPERSET</span>' : ''}
+                                    </div>
+                                </div>
+
+                                ${ex.isSuperset && ex.subExercises ? `
+                                    <div class="space-y-3">
+                                        ${ex.subExercises.map((sub) => `
+                                            <div class="p-3 bg-slate-950/60 rounded-xl border border-slate-800 space-y-2">
+                                                <h5 class="font-bold text-xs text-brand-500 tracking-wide uppercase flex items-center gap-1.5">
+                                                    <span class="w-1.5 h-1.5 rounded-full bg-brand-500"></span>
+                                                    <span>${escapeHtml(sub.name)}</span>
+                                                </h5>
+                                                <div class="overflow-x-auto">
+                                                    <table class="w-full text-center border-collapse">
+                                                        <thead>
+                                                            <tr class="text-[11px] text-slate-400 border-b border-slate-800 uppercase font-semibold">
+                                                                <th class="pb-1.5 text-left w-24">CAMPO</th>
+                                                                ${ex.target.map((_, sIdx) => `<th class="pb-1.5">SET ${sIdx + 1}</th>`).join('')}
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody class="divide-y divide-slate-800/50 text-xs">
+                                                            <tr>
+                                                                <td class="py-2.5 font-semibold text-slate-400 text-left">Obiettivo</td>
+                                                                ${ex.target.map(t => `
+                                                                    <td class="py-2.5 font-mono font-bold text-amber-400 bg-slate-950/60">${t}</td>
+                                                                `).join('')}
+                                                            </tr>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                ` : `
+                                    <div class="overflow-x-auto">
+                                        <table class="w-full text-center border-collapse">
+                                            <thead>
+                                                <tr class="text-[11px] text-slate-400 border-b border-slate-800 uppercase font-semibold">
+                                                    <th class="pb-1.5 text-left w-24">CAMPO</th>
+                                                    ${ex.target.map((_, sIdx) => `<th class="pb-1.5">SET ${sIdx + 1}</th>`).join('')}
+                                                </tr>
+                                            </thead>
+                                            <tbody class="divide-y divide-slate-800/50 text-xs">
+                                                <tr>
+                                                    <td class="py-2.5 font-semibold text-slate-400 text-left">Obiettivo</td>
+                                                    ${ex.target.map(t => `
+                                                        <td class="py-2.5 font-mono font-bold text-amber-400 bg-slate-950/60">${t}</td>
+                                                    `).join('')}
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                `}
+                            </div>
+                        `).join('')}
+                    </div>
+
+                </div>
+            `;
+        }
+
+        // =========================================================================
+        // VIEW: FRIEND ROUTINE FULLSCREEN
+        // =========================================================================
+        function viewFriendRoutineFullscreen(routine) {
+            appState.selectedRoutineView = routine;
+            appState.currentDayIndex = 0;
+            navigateTo('friend-routine-detail-view');
+        }
+
+        function renderFriendRoutineDetailFullscreenView(container, headerActions) {
+            const routine = appState.selectedRoutineView;
+            if (!routine) {
+                navigateTo('friends');
+                return;
+            }
+
+            headerActions.innerHTML = `
+                <button onclick="navigateTo('home')" title="Home" class="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition">
+                    <i data-lucide="home" class="w-4 h-4"></i>
+                </button>
+            `;
+
+            const currentDay = routine.days[appState.currentDayIndex] || routine.days[0];
+
+            container.innerHTML = `
+                <div class="space-y-4 select-none">
+                    
+                    <div class="space-y-3">
+                        <div class="text-center px-2">
+                            <h2 class="font-black text-xl text-white truncate">${escapeHtml(routine.title)}</h2>
+                            <span class="text-[11px] text-emerald-400 font-bold uppercase tracking-wider block mt-0.5">
+                                Allenamento Svolto dall'Amico • ${new Date(routine.createdDate).toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' })}
+                            </span>
+                        </div>
+
+                        <div class="flex overflow-x-auto gap-1 bg-slate-900 p-1 rounded-2xl border border-slate-800">
+                            ${routine.days.map((day, idx) => {
+                                const active = idx === appState.currentDayIndex;
+                                const dayDone = isDayComplete(day);
+                                return `
+                                    <button onclick="switchDay(${idx})" class="flex-1 min-w-[60px] py-2 px-1 rounded-xl font-bold text-xs transition flex flex-col items-center justify-center space-y-0.5 ${active ? 'bg-brand-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'}">
+                                        <span>G${idx+1}</span>
+                                        <span class="w-1.5 h-1.5 rounded-full ${dayDone ? (active ? 'bg-slate-950' : 'bg-brand-500') : 'bg-slate-700'}"></span>
+                                    </button>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between px-1">
+                            <h3 class="font-extrabold text-white text-base flex items-center space-x-2">
+                                <span class="w-2 h-4 bg-emerald-400 rounded-full"></span>
+                                <span>${escapeHtml(currentDay.name)}</span>
+                            </h3>
+                            <span class="text-xs px-2.5 py-1 rounded-full ${isDayComplete(currentDay) ? 'bg-brand-500/10 text-brand-500 border border-brand-500/30' : 'bg-slate-800 text-slate-400'} font-semibold">
+                                ${isDayComplete(currentDay) ? 'Completato' : 'In corso'}
+                            </span>
+                        </div>
+
+                        ${currentDay.exercises.map((ex) => `
+                            <div class="p-4 rounded-2xl bg-slate-900 border ${ex.isSuperset ? 'border-brand-500/40' : 'border-slate-800'} shadow-md space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center space-x-2">
+                                        <h4 class="font-bold text-sm text-slate-100 tracking-wide">${escapeHtml(ex.isSuperset ? (ex.name || 'SUPERSERIE') : ex.name)}</h4>
+                                        ${ex.isSuperset ? '<span class="px-2 py-0.5 rounded bg-brand-500/20 text-brand-500 font-extrabold text-[10px]">SUPERSET</span>' : ''}
+                                    </div>
+                                </div>
+
+                                ${ex.isSuperset && ex.subExercises ? `
+                                    <div class="space-y-4">
+                                        ${ex.subExercises.map((sub) => `
+                                            <div class="p-3 bg-slate-950/60 rounded-xl border border-slate-800 space-y-2">
+                                                <h5 class="font-bold text-xs text-brand-500 tracking-wide uppercase flex items-center gap-1.5">
+                                                    <span class="w-1.5 h-1.5 rounded-full bg-brand-500"></span>
+                                                    <span>${escapeHtml(sub.name)}</span>
+                                                </h5>
+                                                <div class="overflow-x-auto">
+                                                    <table class="w-full text-center border-collapse">
+                                                        <thead>
+                                                            <tr class="text-[11px] text-slate-400 border-b border-slate-800 uppercase font-semibold">
+                                                                <th class="pb-1.5 text-left w-20">CAMPO</th>
+                                                                ${ex.target.map((_, sIdx) => `<th class="pb-1.5">SET ${sIdx + 1}</th>`).join('')}
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody class="divide-y divide-slate-800/50 text-xs">
+                                                            <tr>
+                                                                <td class="py-2 font-semibold text-slate-400 text-left">Obiettivo</td>
+                                                                ${ex.target.map(t => `
+                                                                    <td class="py-2 font-mono font-bold text-amber-400 bg-slate-950/40">${t}</td>
+                                                                `).join('')}
+                                                            </tr>
+                                                            <tr>
+                                                                <td class="py-2 font-semibold text-slate-300 text-left">Peso (kg)</td>
+                                                                ${sub.weight.map((w) => `
+                                                                    <td class="py-2 font-mono font-bold text-white bg-slate-950/20">${escapeHtml(w) || '--'}</td>
+                                                                `).join('')}
+                                                            </tr>
+                                                            <tr>
+                                                                <td class="py-2 font-semibold text-slate-300 text-left">Rep svolte</td>
+                                                                ${sub.rep.map((r) => `
+                                                                    <td class="py-2 font-mono font-bold text-brand-500 bg-slate-950/20">${escapeHtml(r) || '--'}</td>
+                                                                `).join('')}
+                                                            </tr>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                ` : `
+                                    <div class="overflow-x-auto">
+                                        <table class="w-full text-center border-collapse">
+                                            <thead>
+                                                <tr class="text-[11px] text-slate-400 border-b border-slate-800 uppercase font-semibold">
+                                                    <th class="pb-1.5 text-left w-20">CAMPO</th>
+                                                    ${ex.target.map((_, sIdx) => `<th class="pb-1.5">SET ${sIdx + 1}</th>`).join('')}
+                                                </tr>
+                                            </thead>
+                                            <tbody class="divide-y divide-slate-800/50 text-xs">
+                                                <tr>
+                                                    <td class="py-2 font-semibold text-slate-400 text-left">Obiettivo</td>
+                                                    ${ex.target.map(t => `
+                                                        <td class="py-2 font-mono font-bold text-amber-400 bg-slate-950/40">${t}</td>
+                                                    `).join('')}
+                                                </tr>
+                                                <tr>
+                                                    <td class="py-2 font-semibold text-slate-300 text-left">Peso (kg)</td>
+                                                    ${ex.weight.map((w) => `
+                                                        <td class="py-2 font-mono font-bold text-white bg-slate-950/20">${escapeHtml(w) || '--'}</td>
+                                                    `).join('')}
+                                                </tr>
+                                                <tr>
+                                                    <td class="py-2 font-semibold text-slate-300 text-left">Rep svolte</td>
+                                                    ${ex.rep.map((r) => `
+                                                        <td class="py-2 font-mono font-bold text-brand-500 bg-slate-950/20">${escapeHtml(r) || '--'}</td>
+                                                    `).join('')}
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                `}
+
+                                ${ex.note ? `
+                                    <div class="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80 text-xs text-slate-300 italic">
+                                        Note: "${escapeHtml(ex.note)}"
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+
+                </div>
+            `;
+        }
+
+        // =========================================================================
+        // VIEW: SCHEDE LIST (GESTIONE SCHEDE PERSONALI)
+        // =========================================================================
         function renderSchedeListView(container, headerActions) {
             headerActions.innerHTML = `
                 <button onclick="navigateTo('home')" class="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition">
@@ -1050,14 +1463,15 @@
                     </div>
 
                     <div class="space-y-3">
-                        ${appState.schede.map(scheda => `
-                            <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+                        ${appState.schede.map((scheda) => `
+                            <div onclick="viewSchedaFullscreen(appState.schede.find(s => s.id === '${scheda.id}'), false)" 
+                                class="p-4 rounded-2xl bg-slate-900 border border-slate-800 hover:border-brand-500/50 transition cursor-pointer space-y-3 group">
                                 <div class="flex items-center justify-between">
                                     <div>
-                                        <h3 class="font-bold text-white text-base">${escapeHtml(scheda.title)}</h3>
-                                        <span class="text-xs text-slate-400">${scheda.days.length} Giorni previsti</span>
+                                        <h3 class="font-bold text-white text-base group-hover:text-brand-500 transition">${escapeHtml(scheda.title)}</h3>
+                                        <span class="text-xs text-slate-400">${scheda.days.length} Giorni previsti • Clicca per visualizzare</span>
                                     </div>
-                                    <div class="flex items-center space-x-2">
+                                    <div class="flex items-center space-x-2" onclick="event.stopPropagation()">
                                         <button onclick="editScheda('${scheda.id}')" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-brand-500 transition">
                                             <i data-lucide="edit-3" class="w-4 h-4"></i>
                                         </button>
@@ -1758,15 +2172,6 @@
                             <div class="p-4 text-center text-xs text-slate-500">Caricamento amici...</div>
                         </div>
                     </div>
-
-                    <!-- Friend Routines Drawer -->
-                    <div id="friend-schede-drawer" class="hidden p-4 rounded-2xl bg-slate-900 border border-brand-500/50 space-y-3">
-                        <div class="flex justify-between items-center border-b border-slate-800 pb-2">
-                            <h4 id="friend-schede-title" class="font-bold text-sm text-brand-500">Schede Amico</h4>
-                            <button onclick="closeFriendSchedeDrawer()" class="text-xs text-red-400 font-bold">[Chiudi]</button>
-                        </div>
-                        <div id="friend-schede-list" class="space-y-2"></div>
-                    </div>
                 </div>
             `;
 
@@ -1855,10 +2260,8 @@
 
                 return `
                     <div class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
-                        <div class="flex items-center space-x-2">
-                            <div class="w-7 h-7 rounded-full bg-brand-500/20 text-brand-500 flex items-center justify-center font-bold text-xs border border-brand-500/30">
-                                ${(user.username || 'U')[0].toUpperCase()}
-                            </div>
+                        <div class="flex items-center space-x-2.5">
+                            ${renderAvatarHtml(user.avatar_url, user.username, "w-8 h-8 font-bold text-xs")}
                             <span class="font-bold text-xs text-white">${escapeHtml(user.username)}</span>
                         </div>
                         <div>${actionHtml}</div>
@@ -1909,18 +2312,26 @@
             // Load pending received
             const { data: pendingReceived } = await supabaseClient
                 .from('friendships')
-                .select('id, requester_id, profiles!friendships_requester_id_fkey(username)')
+                .select('id, requester_id, profiles!friendships_requester_id_fkey(username, avatar_url)')
                 .eq('addressee_id', currentUser.id)
                 .eq('status', 'pending');
 
             const pendingCont = document.getElementById('pending-friends-container');
             const pendingList = document.getElementById('pending-friends-list');
 
+            if (pendingReceived) {
+                pendingRequestsCount = pendingReceived.length;
+                updateFriendsBadge();
+            }
+
             if (pendingReceived && pendingReceived.length > 0) {
                 pendingCont.classList.remove('hidden');
                 pendingList.innerHTML = pendingReceived.map(p => `
                     <div class="p-3 rounded-xl bg-slate-900 border border-amber-500/30 flex items-center justify-between text-xs">
-                        <span class="font-bold text-slate-200">${escapeHtml(p.profiles?.username || 'Utente')}</span>
+                        <div class="flex items-center space-x-2.5">
+                            ${renderAvatarHtml(p.profiles?.avatar_url, p.profiles?.username, "w-8 h-8 font-bold text-xs")}
+                            <span class="font-bold text-slate-200">${escapeHtml(p.profiles?.username || 'Utente')}</span>
+                        </div>
                         <div class="flex gap-2">
                             <button onclick="respondFriend('${p.id}', 'accepted')" class="px-2.5 py-1 rounded-lg bg-brand-500 text-slate-950 font-bold">Accetta</button>
                             <button onclick="respondFriend('${p.id}', 'rejected')" class="px-2.5 py-1 rounded-lg bg-red-600 text-white font-bold">Rifiuta</button>
@@ -1934,7 +2345,7 @@
             // Load pending sent
             const { data: pendingSent } = await supabaseClient
                 .from('friendships')
-                .select('id, addressee_id, profiles!friendships_addressee_id_fkey(username)')
+                .select('id, addressee_id, profiles!friendships_addressee_id_fkey(username, avatar_url)')
                 .eq('requester_id', currentUser.id)
                 .eq('status', 'pending');
 
@@ -1945,7 +2356,10 @@
                 sentCont.classList.remove('hidden');
                 sentList.innerHTML = pendingSent.map(p => `
                     <div class="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between text-xs">
-                        <span class="font-bold text-slate-200">${escapeHtml(p.profiles?.username || 'Utente')}</span>
+                        <div class="flex items-center space-x-2.5">
+                            ${renderAvatarHtml(p.profiles?.avatar_url, p.profiles?.username, "w-8 h-8 font-bold text-xs")}
+                            <span class="font-bold text-slate-200">${escapeHtml(p.profiles?.username || 'Utente')}</span>
+                        </div>
                         <button onclick="cancelSentFriendRequest('${p.id}')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-red-400 font-bold">Annulla</button>
                     </div>
                 `).join('');
@@ -1980,12 +2394,12 @@
 
             if (profiles) {
                 friendsList.innerHTML = profiles.map(fp => `
-                    <div class="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-between">
-                        <span class="font-bold text-sm text-white">${escapeHtml(fp.username)}</span>
-                        <button onclick="fetchFriendSchede('${fp.id}', '${escapeHtml(fp.username)}')" class="py-1.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-brand-500 font-bold text-xs flex items-center space-x-1">
-                            <i data-lucide="eye" class="w-3.5 h-3.5"></i>
-                            <span>Vedi Schede</span>
-                        </button>
+                    <div onclick="openFriendProfile('${fp.id}')" class="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-brand-500/50 transition cursor-pointer flex items-center justify-between group">
+                        <div class="flex items-center space-x-3">
+                            ${renderAvatarHtml(fp.avatar_url, fp.username, "w-10 h-10 font-bold text-sm")}
+                            <span class="font-bold text-sm text-white group-hover:text-brand-500 transition">${escapeHtml(fp.username)}</span>
+                        </div>
+                        <i data-lucide="chevron-right" class="w-4 h-4 text-slate-500 group-hover:text-white transition"></i>
                     </div>
                 `).join('');
                 lucide.createIcons();
@@ -1999,46 +2413,159 @@
             } else {
                 await supabaseClient.from('friendships').delete().eq('id', id);
             }
+            await checkPendingFriendRequests();
             loadFriendsData();
         }
 
-        async function fetchFriendSchede(friendId, friendUsername) {
+        async function openFriendProfile(friendId) {
             if (!supabaseClient) return;
-            const drawer = document.getElementById('friend-schede-drawer');
-            const title = document.getElementById('friend-schede-title');
-            const list = document.getElementById('friend-schede-list');
+            showToast("Caricamento profilo amico...");
+            const { data: friendProfile } = await supabaseClient
+                .from('profiles')
+                .select('*')
+                .eq('id', friendId)
+                .single();
 
-            title.innerText = `Schede di ${friendUsername}`;
-            drawer.classList.remove('hidden');
+            if (friendProfile) {
+                navigateTo('friend-profile', { friendId, friendProfile });
+            } else {
+                showToast("Impossibile caricare il profilo.");
+            }
+        }
 
+        async function renderFriendProfileView(container, headerActions) {
+            const friendProfile = appState.selectedFriendProfile;
+            const friendId = appState.selectedFriendId;
+
+            headerActions.innerHTML = `
+                <button onclick="navigateTo('friends')" class="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition">
+                    <i data-lucide="users" class="w-4 h-4"></i>
+                </button>
+            `;
+
+            if (!friendProfile) {
+                container.innerHTML = `<div class="p-4 text-center text-xs text-slate-500">Errore caricamento profilo amico.</div>`;
+                return;
+            }
+
+            const avatarUrl = friendProfile.avatar_url;
+            const username = friendProfile.username || 'Atleta';
+
+            container.innerHTML = `
+                <div class="space-y-5 animate-fade-in pb-12">
+                    
+                    <!-- Header Profilo Amico Grande -->
+                    <div class="p-6 rounded-3xl bg-slate-900 border border-slate-800 flex flex-col items-center justify-center space-y-3 relative overflow-hidden shadow-xl text-center">
+                        <div class="w-24 h-24 rounded-full overflow-hidden bg-brand-500/20 border-2 border-brand-500 flex items-center justify-center text-brand-500 font-black text-3xl shadow-lg shadow-brand-500/20">
+                            ${avatarUrl ? `<img src="${escapeHtml(avatarUrl)}" class="w-full h-full object-cover" onerror="this.src=''" />` : username[0].toUpperCase()}
+                        </div>
+                        <div>
+                            <h2 class="text-xl font-black text-white">${escapeHtml(username)}</h2>
+                            <span class="text-xs text-brand-500 font-medium">Profilo Amico</span>
+                        </div>
+                    </div>
+
+                    <!-- Schede Amico -->
+                    <div class="space-y-3">
+                        <h3 class="text-xs font-bold text-brand-500 uppercase tracking-wider flex items-center gap-1.5">
+                            <i data-lucide="file-text" class="w-4 h-4"></i>
+                            <span>Schede di Allenamento</span>
+                        </h3>
+                        <div id="friend-profile-schede" class="space-y-2">
+                            <div class="p-3 text-center text-xs text-slate-500">Caricamento schede...</div>
+                        </div>
+                    </div>
+
+                    <!-- Routine / Storico Allenamenti Amico -->
+                    <div class="space-y-3">
+                        <h3 class="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <i data-lucide="activity" class="w-4 h-4"></i>
+                            <span>Routine & Allenamenti Svolti</span>
+                        </h3>
+                        <div id="friend-profile-routines" class="space-y-2">
+                            <div class="p-3 text-center text-xs text-slate-500">Caricamento routine...</div>
+                        </div>
+                    </div>
+
+                </div>
+            `;
+
+            // Fetch schede amico
             const { data: schede } = await supabaseClient
                 .from('schede')
                 .select('*')
                 .eq('user_id', friendId);
 
-            if (!schede || schede.length === 0) {
-                list.innerHTML = `<p class="text-xs text-slate-500 italic">L'utente non ha schede pubbliche.</p>`;
-                return;
+            const schedeContainer = document.getElementById('friend-profile-schede');
+            if (schedeContainer) {
+                if (!schede || schede.length === 0) {
+                    schedeContainer.innerHTML = `<p class="p-3 text-xs text-slate-500 italic bg-slate-900/40 rounded-xl border border-slate-800">L'utente non ha ancora schede salvate.</p>`;
+                } else {
+                    const parsedSchede = schede.map(s => typeof s.content === 'string' ? JSON.parse(s.content) : s.content);
+                    window._currentFriendSchede = parsedSchede;
+
+                    schedeContainer.innerHTML = parsedSchede.map((sObj, sIdx) => {
+                        return `
+                            <div onclick="viewSchedaFullscreen(window._currentFriendSchede[${sIdx}], true)" class="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-brand-500/50 transition cursor-pointer flex items-center justify-between group">
+                                <div class="space-y-0.5">
+                                    <h4 class="font-bold text-xs text-white group-hover:text-brand-500 transition">${escapeHtml(sObj.title)}</h4>
+                                    <span class="text-[10px] text-slate-400 block">${sObj.days?.length || 0} Giorni previsti • Clicca per i dettagli</span>
+                                </div>
+                                <div class="flex items-center space-x-2" onclick="event.stopPropagation()">
+                                    <button onclick='cloneFriendScheda(${JSON.stringify(sObj)})' class="py-1.5 px-3 rounded-xl bg-brand-500 hover:bg-brand-600 text-slate-950 font-extrabold text-xs transition">
+                                        Clona Scheda
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
             }
 
-            list.innerHTML = schede.map(s => {
-                const sObj = typeof s.content === 'string' ? JSON.parse(s.content) : s.content;
-                return `
-                    <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
-                        <div>
-                            <h5 class="font-bold text-xs text-white">${escapeHtml(sObj.title)}</h5>
-                            <span class="text-[10px] text-slate-400">${sObj.days.length} Giorni</span>
-                        </div>
-                        <button onclick='cloneFriendScheda(${JSON.stringify(sObj)})' class="py-1.5 px-3 rounded-xl bg-brand-500 text-slate-950 font-bold text-xs">
-                            Salva nelle mie Schede
-                        </button>
-                    </div>
-                `;
-            }).join('');
-        }
+            // Fetch routine amico
+            const { data: routines } = await supabaseClient
+                .from('routines')
+                .select('*')
+                .eq('user_id', friendId);
 
-        function closeFriendSchedeDrawer() {
-            document.getElementById('friend-schede-drawer').classList.add('hidden');
+            const routinesContainer = document.getElementById('friend-profile-routines');
+            if (routinesContainer) {
+                if (!routines || routines.length === 0) {
+                    routinesContainer.innerHTML = `<p class="p-3 text-xs text-slate-500 italic bg-slate-900/40 rounded-xl border border-slate-800">Nessun allenamento registrato dall'utente.</p>`;
+                } else {
+                    const parsedRoutines = routines.map(r => typeof r.content === 'string' ? JSON.parse(r.content) : r.content);
+                    parsedRoutines.sort((a,b) => new Date(b.createdDate) - new Date(a.createdDate));
+                    window._currentFriendRoutines = parsedRoutines;
+
+                    routinesContainer.innerHTML = parsedRoutines.map((r, rIdx) => {
+                        const isComplete = isRoutineComplete(r);
+                        const completedDays = r.days.filter(d => isDayComplete(d)).length;
+
+                        return `
+                            <div onclick="viewFriendRoutineFullscreen(window._currentFriendRoutines[${rIdx}])" class="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-emerald-500/50 transition cursor-pointer space-y-2 group">
+                                <div class="flex items-start justify-between">
+                                    <div>
+                                        <h4 class="font-bold text-xs text-white group-hover:text-emerald-400 transition">${escapeHtml(r.title)}</h4>
+                                        <span class="text-[10px] text-slate-400 block">${new Date(r.createdDate).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                                    </div>
+                                    <span class="px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase ${isComplete ? 'bg-brand-500/10 text-brand-500 border border-brand-500/30' : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'}">
+                                        ${isComplete ? 'Completato' : 'In Corso'}
+                                    </span>
+                                </div>
+                                <div class="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-800/60">
+                                    <span>Avanzamento: ${completedDays} / ${r.days.length} Giorni</span>
+                                    <span class="text-brand-500 font-bold flex items-center gap-1">
+                                        <span>Vedi esecuzione</span>
+                                        <i data-lucide="chevron-right" class="w-3 h-3"></i>
+                                    </span>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            }
+
+            lucide.createIcons();
         }
 
         function cloneFriendScheda(schedaObj) {
@@ -2050,7 +2577,6 @@
             saveToLocalStorage();
             syncSchedeToCloud();
             showToast("Scheda clonata con successo!");
-            closeFriendSchedeDrawer();
             navigateTo('schede-list');
         }
 
@@ -2229,7 +2755,6 @@
                     <h3 class="text-lg font-bold text-white">${isEdit ? 'Modifica Esercizio' : 'Nuovo Esercizio'}</h3>
                     
                     <div class="space-y-3 text-xs">
-                        <!-- Toggle Superserie -->
                         <div class="flex items-center justify-between bg-slate-950 p-2.5 rounded-xl border border-slate-800">
                             <div>
                                 <span class="text-xs font-bold text-white block">Esercizio in Superserie</span>
