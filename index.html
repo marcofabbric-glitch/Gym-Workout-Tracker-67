@@ -268,7 +268,7 @@
             }
         }
 
-async function checkSupabaseSession() {
+        async function checkSupabaseSession() {
             if (!supabaseClient) return;
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (session) {
@@ -290,7 +290,7 @@ async function checkSupabaseSession() {
             });
         }
 
-async function fetchUserProfile() {
+        async function fetchUserProfile() {
             if (!supabaseClient || !currentUser) return;
             const { data, error } = await supabaseClient
                 .from('profiles')
@@ -314,7 +314,7 @@ async function fetchUserProfile() {
             }
         }
 		
-async function ensureUserProfileExists() {
+        async function ensureUserProfileExists() {
             if (!supabaseClient || !currentUser) return;
 
             const { data: existingProfile } = await supabaseClient
@@ -347,7 +347,7 @@ async function ensureUserProfileExists() {
             renderApp();
         }
 		
-async function syncDataFromCloud() {
+        async function syncDataFromCloud() {
             if (!supabaseClient || !currentUser) return;
             
             // 1. Sincronizzazione Schede
@@ -632,7 +632,7 @@ async function syncDataFromCloud() {
             `;
         }
 
-async function uploadAvatarImage(input) {
+        async function uploadAvatarImage(input) {
             if (!input.files || input.files.length === 0) return;
             const file = input.files[0];
 
@@ -678,7 +678,7 @@ async function uploadAvatarImage(input) {
             };
         }
 
-async function updateProfileUsername() {
+        async function updateProfileUsername() {
             const newUsername = document.getElementById('prof-username').value.trim();
             if (!newUsername) return showToast("Inserisci un username valido!");
             if (!currentUser) return;
@@ -752,7 +752,7 @@ async function updateProfileUsername() {
             });
         }
 
-async function deleteUserAccount() {
+        async function deleteUserAccount() {
             if (!currentUser) return;
 
             if (supabaseClient) {
@@ -1730,21 +1730,28 @@ async function deleteUserAccount() {
                         <p class="text-xs text-slate-400">Cerca utenti e naviga tra le loro schede</p>
                     </div>
 
+                    <!-- Live Search Input -->
                     <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
                         <label class="text-xs font-bold text-brand-500 block">Cerca Utente per Username</label>
-                        <div class="flex gap-2">
-                            <input type="text" id="input-search-username" placeholder="Username" class="flex-1 px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl font-bold text-xs text-white focus:border-brand-500 focus:outline-none" />
-                            <button onclick="searchAndAddFriend()" class="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-slate-950 font-bold text-xs rounded-xl">
-                                Cerca
-                            </button>
+                        <div class="relative">
+                            <input type="text" id="input-search-username" oninput="onSearchUsernameInput(this.value)" placeholder="Inizia a digitare un username..." class="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl font-bold text-xs text-white focus:border-brand-500 focus:outline-none transition" />
                         </div>
+                        <div id="search-results-list" class="space-y-2 max-h-56 overflow-y-auto pt-1 hidden"></div>
                     </div>
 
+                    <!-- Received Pending Requests -->
                     <div id="pending-friends-container" class="space-y-2 hidden">
-                        <h3 class="text-xs font-bold text-amber-400 uppercase tracking-wider">Richieste in Attesa</h3>
+                        <h3 class="text-xs font-bold text-amber-400 uppercase tracking-wider">Richieste Ricevute in Attesa</h3>
                         <div id="pending-friends-list" class="space-y-2"></div>
                     </div>
 
+                    <!-- Sent Pending Requests -->
+                    <div id="sent-friends-container" class="space-y-2 hidden">
+                        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Richieste Inviate in Attesa</h3>
+                        <div id="sent-friends-list" class="space-y-2"></div>
+                    </div>
+
+                    <!-- Confirmed Friends -->
                     <div class="space-y-3">
                         <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">I Tuoi Amici</h3>
                         <div id="friends-list" class="space-y-2">
@@ -1752,6 +1759,7 @@ async function deleteUserAccount() {
                         </div>
                     </div>
 
+                    <!-- Friend Routines Drawer -->
                     <div id="friend-schede-drawer" class="hidden p-4 rounded-2xl bg-slate-900 border border-brand-500/50 space-y-3">
                         <div class="flex justify-between items-center border-b border-slate-800 pb-2">
                             <h4 id="friend-schede-title" class="font-bold text-sm text-brand-500">Schede Amico</h4>
@@ -1765,45 +1773,141 @@ async function deleteUserAccount() {
             loadFriendsData();
         }
 
-        async function searchAndAddFriend() {
-            const input = document.getElementById('input-search-username');
-            const username = input.value.trim();
-            if (!username) return;
+        let searchDebounceTimer = null;
+        function onSearchUsernameInput(value) {
+            clearTimeout(searchDebounceTimer);
+            const query = value.trim();
+            const resultsContainer = document.getElementById('search-results-list');
+            if (!resultsContainer) return;
 
-            if (!supabaseClient || !currentUser) return;
+            if (!query) {
+                resultsContainer.innerHTML = '';
+                resultsContainer.classList.add('hidden');
+                return;
+            }
 
-            const { data: profiles } = await supabaseClient
+            searchDebounceTimer = setTimeout(() => {
+                performLiveUserSearch(query);
+            }, 300);
+        }
+
+        async function performLiveUserSearch(query) {
+            const resultsContainer = document.getElementById('search-results-list');
+            if (!resultsContainer || !supabaseClient || !currentUser) return;
+
+            resultsContainer.innerHTML = `<div class="p-2 text-center text-xs text-slate-500">Ricerca in corso...</div>`;
+            resultsContainer.classList.remove('hidden');
+
+            const { data: profiles, error } = await supabaseClient
                 .from('profiles')
                 .select('*')
-                .eq('username', username);
+                .ilike('username', `%${query}%`)
+                .neq('id', currentUser.id)
+                .limit(10);
 
-            if (!profiles || profiles.length === 0) {
-                showToast("Utente non trovato!");
+            if (error || !profiles || profiles.length === 0) {
+                resultsContainer.innerHTML = `<div class="p-2 text-center text-xs text-slate-500">Nessun utente trovato</div>`;
                 return;
             }
 
-            const target = profiles[0];
-            if (target.id === currentUser.id) {
-                showToast("Non puoi aggiungere te stesso!");
-                return;
-            }
+            const targetIds = profiles.map(p => p.id);
+            const { data: existingFriendships } = await supabaseClient
+                .from('friendships')
+                .select('*')
+                .or(`and(requester_id.eq.${currentUser.id},addressee_id.in.(${targetIds.join(',')})),and(addressee_id.eq.${currentUser.id},requester_id.in.(${targetIds.join(',')}))`);
+
+            const qLower = query.toLowerCase();
+            profiles.sort((a, b) => {
+                const uA = (a.username || '').toLowerCase();
+                const uB = (b.username || '').toLowerCase();
+                const exactA = uA === qLower ? 0 : 1;
+                const exactB = uB === qLower ? 0 : 1;
+                if (exactA !== exactB) return exactA - exactB;
+                
+                const startsA = uA.startsWith(qLower) ? 0 : 1;
+                const startsB = uB.startsWith(qLower) ? 0 : 1;
+                if (startsA !== startsB) return startsA - startsB;
+
+                return uA.localeCompare(uB);
+            });
+
+            resultsContainer.innerHTML = profiles.map(user => {
+                const friendship = (existingFriendships || []).find(
+                    f => (f.requester_id === user.id && f.addressee_id === currentUser.id) ||
+                         (f.addressee_id === user.id && f.requester_id === currentUser.id)
+                );
+
+                let actionHtml = '';
+                if (!friendship) {
+                    actionHtml = `
+                        <button onclick="sendFriendRequestFromSearch('${user.id}', '${escapeHtml(user.username)}')" class="py-1 px-2.5 rounded-lg bg-brand-500 hover:bg-brand-600 text-slate-950 font-bold text-xs flex items-center space-x-1">
+                            <i data-lucide="user-plus" class="w-3.5 h-3.5"></i>
+                            <span>Invia richiesta</span>
+                        </button>
+                    `;
+                } else if (friendship.status === 'accepted') {
+                    actionHtml = `<span class="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-1 rounded-lg">Gia Amici</span>`;
+                } else if (friendship.requester_id === currentUser.id) {
+                    actionHtml = `<span class="text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2 py-1 rounded-lg">Richiesta Inviata</span>`;
+                } else {
+                    actionHtml = `<span class="text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2 py-1 rounded-lg">Richiesta Ricevuta</span>`;
+                }
+
+                return `
+                    <div class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-7 h-7 rounded-full bg-brand-500/20 text-brand-500 flex items-center justify-center font-bold text-xs border border-brand-500/30">
+                                ${(user.username || 'U')[0].toUpperCase()}
+                            </div>
+                            <span class="font-bold text-xs text-white">${escapeHtml(user.username)}</span>
+                        </div>
+                        <div>${actionHtml}</div>
+                    </div>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        async function sendFriendRequestFromSearch(targetId, targetUsername) {
+            if (!supabaseClient || !currentUser) return;
 
             const { error } = await supabaseClient
                 .from('friendships')
-                .insert([{ requester_id: currentUser.id, addressee_id: target.id, status: 'pending' }]);
+                .insert([{ requester_id: currentUser.id, addressee_id: targetId, status: 'pending' }]);
 
             if (error) {
-                showToast("Richiesta già inviata o esistente.");
+                showToast("Errore durante l'invio della richiesta.");
             } else {
-                showToast(`Richiesta inviata a ${target.username}!`);
-                input.value = '';
+                showToast(`Richiesta inviata a ${targetUsername}!`);
+                const input = document.getElementById('input-search-username');
+                if (input) performLiveUserSearch(input.value.trim());
+                loadFriendsData();
+            }
+        }
+
+        async function cancelSentFriendRequest(friendshipId) {
+            if (!supabaseClient) return;
+            const { error } = await supabaseClient
+                .from('friendships')
+                .delete()
+                .eq('id', friendshipId);
+
+            if (error) {
+                showToast("Errore durante l'annullamento.");
+            } else {
+                showToast("Richiesta di amicizia annullata!");
+                const input = document.getElementById('input-search-username');
+                if (input && input.value.trim()) performLiveUserSearch(input.value.trim());
+                loadFriendsData();
             }
         }
 
         async function loadFriendsData() {
             if (!supabaseClient || !currentUser) return;
 
-            const { data: pending } = await supabaseClient
+            // Load pending received
+            const { data: pendingReceived } = await supabaseClient
                 .from('friendships')
                 .select('id, requester_id, profiles!friendships_requester_id_fkey(username)')
                 .eq('addressee_id', currentUser.id)
@@ -1812,9 +1916,9 @@ async function deleteUserAccount() {
             const pendingCont = document.getElementById('pending-friends-container');
             const pendingList = document.getElementById('pending-friends-list');
 
-            if (pending && pending.length > 0) {
+            if (pendingReceived && pendingReceived.length > 0) {
                 pendingCont.classList.remove('hidden');
-                pendingList.innerHTML = pending.map(p => `
+                pendingList.innerHTML = pendingReceived.map(p => `
                     <div class="p-3 rounded-xl bg-slate-900 border border-amber-500/30 flex items-center justify-between text-xs">
                         <span class="font-bold text-slate-200">${escapeHtml(p.profiles?.username || 'Utente')}</span>
                         <div class="flex gap-2">
@@ -1827,6 +1931,29 @@ async function deleteUserAccount() {
                 pendingCont.classList.add('hidden');
             }
 
+            // Load pending sent
+            const { data: pendingSent } = await supabaseClient
+                .from('friendships')
+                .select('id, addressee_id, profiles!friendships_addressee_id_fkey(username)')
+                .eq('requester_id', currentUser.id)
+                .eq('status', 'pending');
+
+            const sentCont = document.getElementById('sent-friends-container');
+            const sentList = document.getElementById('sent-friends-list');
+
+            if (pendingSent && pendingSent.length > 0) {
+                sentCont.classList.remove('hidden');
+                sentList.innerHTML = pendingSent.map(p => `
+                    <div class="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between text-xs">
+                        <span class="font-bold text-slate-200">${escapeHtml(p.profiles?.username || 'Utente')}</span>
+                        <button onclick="cancelSentFriendRequest('${p.id}')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-red-400 font-bold">Annulla</button>
+                    </div>
+                `).join('');
+            } else {
+                sentCont.classList.add('hidden');
+            }
+
+            // Load friendships
             const { data: friendships } = await supabaseClient
                 .from('friendships')
                 .select('id, requester_id, addressee_id')
@@ -2021,10 +2148,9 @@ async function deleteUserAccount() {
             }
         }
 
-       async function logoutSupabase() {
+        async function logoutSupabase() {
             if (supabaseClient) await supabaseClient.auth.signOut();
             
-            // Pulisci completamente la memoria locale del browser
             localStorage.clear();
 
             currentUser = null;
